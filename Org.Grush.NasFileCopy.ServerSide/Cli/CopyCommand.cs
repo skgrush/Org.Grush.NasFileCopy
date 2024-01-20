@@ -8,35 +8,44 @@ public class CopyCommand
   private readonly MountService _mountService;
   private readonly LsblkService _lsblkService;
   private readonly RsyncService _rsyncService;
-  
+  private readonly LockFileService _lockFileService;
+
   private Option<string> DestinationDeviceLabelOption { get; }
   private Option<string> SourceNameOption { get; }
+  private Option<bool?> ForceKillOtherProcess { get; }
+
   public Command Command { get; }
 
-  public CopyCommand(MountService mountService, LsblkService lsblkService, RsyncService rsyncService)
+  public CopyCommand(MountService mountService, LsblkService lsblkService, RsyncService rsyncService, LockFileService lockFileService)
   {
     _mountService = mountService;
     _lsblkService = lsblkService;
     _rsyncService = rsyncService;
+    _lockFileService = lockFileService;
 
-    DestinationDeviceLabelOption = new Option<string>(
+    DestinationDeviceLabelOption = new (
       name: "--destination-device-label",
       description: "The user-facing device label of the destination"
     );
-    SourceNameOption = new Option<string>(
+    SourceNameOption = new (
       name: "--source-name",
       description: "Dataset name to copy from"
     );
+    ForceKillOtherProcess = new(
+      name: "--force-kill",
+      description: "Kill existing processes. WARNING: May cause issues with transfers; use when stuck."
+    );
+
     Command = new Command("copy", "Copy from one device to another")
     {
       DestinationDeviceLabelOption,
       SourceNameOption,
     };
-    
-    Command.SetHandler(Handle, DestinationDeviceLabelOption, SourceNameOption);
+
+    Command.SetHandler(Handle, DestinationDeviceLabelOption, SourceNameOption, ForceKillOtherProcess);
   }
 
-  private async Task<int> Handle(string? destinationLabel, string? sourceName)
+  private async Task<int> Handle(string? destinationLabel, string? sourceName, bool? forceKill)
   {
     if (destinationLabel is null)
     {
@@ -50,6 +59,12 @@ public class CopyCommand
       return 1;
     }
 
+    if (_lockFileService.CheckForLockedProcess(killIfExists: forceKill ?? false))
+    {
+      Console.WriteLine("A NasFileCopy process is already running");
+      return 100;
+    }
+
     var mountedSource = (await _mountService.ReadMounts())
       .FirstOrDefault(mnt => mnt.Name == sourceName);
 
@@ -57,6 +72,12 @@ public class CopyCommand
     {
       Console.WriteLine($"Source dataset {sourceName} does not appear to be mounted");
       return 3;
+    }
+
+    if (!mountedSource.Path.StartsWith("/mnt/"))
+    {
+      Console.WriteLine($"Source mount point is not in /mnt/, likely incorrect: {mountedSource.Path}");
+      return 4;
     }
 
     await _lsblkService.ReadLsblk();
@@ -82,11 +103,18 @@ public class CopyCommand
       }
     }
 
-    var result = await _rsyncService.Sync(mountedSource.Path, mountPoint);
-    return result ? 5 : 0;
+    // get a lock and make sure it's cleaned up afterwards
+    using var handle = _lockFileService.CreateLock();
+
+    var syncSuccess = await _rsyncService.Sync(mountedSource.Path, mountPoint);
+    if (syncSuccess)
+    {
+      Console.WriteLine("Sync succeeded!");
+    }
+    return syncSuccess ? 255 : 0;
   }
 
-  private string SanitizeName(string name)
+  private static string SanitizeName(string name)
   {
     return string.Join("",
       name

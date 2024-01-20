@@ -7,10 +7,11 @@ using Org.Grush.NasFileCopy.ServerSide.SystemCom;
 var lsblkService = new LsblkService();
 var mountService = new MountService();
 var rsyncService = new RsyncService();
+var lockFileService = new LockFileService();
 
 var rootCommand = new RootCommand("Server-side NasFileCopy CLI");
 
 rootCommand.AddCommand(new ListCommand(lsblkService).Command);
-rootCommand.AddCommand(new CopyCommand(mountService, lsblkService, rsyncService).Command);
+rootCommand.AddCommand(new CopyCommand(mountService, lsblkService, rsyncService, lockFileService).Command);
 
 return await rootCommand.InvokeAsync(args);

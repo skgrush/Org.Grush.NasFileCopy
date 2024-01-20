@@ -16,7 +16,7 @@ public class RsyncService
     process.StartInfo.FileName = "rsync";
     process.StartInfo.WorkingDirectory = "/bin";
     process.StartInfo.Arguments = $"--verbose --log-file={LogFile} --archive '{src}' '{dest}'";
-    
+
     process.StartInfo.UseShellExecute = false;
     process.StartInfo.CreateNoWindow = true;
     process.Start();
