@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 
 namespace Org.Grush.NasFileCopy.ServerSide.SystemCom;
 
@@ -6,16 +7,18 @@ public class RsyncService
 {
   private const string LogFile = "/var/log/rsync.log";
 
+  public static readonly Regex SimplePathRe = new("^[a-z0-9/]+$", RegexOptions.IgnoreCase);
+
   public async Task<bool> Sync(string src, string dest)
   {
-    if (src.Contains('\'') || dest.Contains('\''))
-      throw new ArgumentException($"invalid src or dest due to apostrophe {src}|{dest}");
+    if (!SimplePathRe.IsMatch(src) || !SimplePathRe.IsMatch(dest))
+      throw new ArgumentException($"invalid characters in src or dest; must be alphanumeric path: {src}|{dest}");
 
     var process = new Process();
 
     process.StartInfo.FileName = "rsync";
     process.StartInfo.WorkingDirectory = "/bin";
-    process.StartInfo.Arguments = $"--verbose --log-file={LogFile} --archive '{src}' '{dest}'";
+    process.StartInfo.Arguments = $"--verbose --log-file={LogFile} --archive {src} {dest}";
 
     process.StartInfo.UseShellExecute = false;
     process.StartInfo.CreateNoWindow = true;

@@ -1,10 +1,13 @@
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 
 namespace Org.Grush.NasFileCopy.ServerSide.SystemCom;
 
 public class MountService
 {
   public static readonly TimeSpan UnmountTimeout = new(0, 0, seconds: 3);
+
+  public static readonly Regex MountPointRe = new("^[a-z0-9/]+$", RegexOptions.IgnoreCase);
 
   public async Task<IReadOnlyList<MountPoint>> ReadMounts()
   {
@@ -31,9 +34,15 @@ public class MountService
 
   public async Task<bool> Mount(string label, string mountPoint)
   {
-    if (label.Contains('\'') || mountPoint.Contains('\''))
+    if (label.Contains('\''))
     {
-      Console.WriteLine($"Error: label or mountPoint is invalid due to apostrophe: {label}|{mountPoint}");
+      Console.WriteLine($"Error: label is invalid due to apostrophe: {label}");
+      return false;
+    }
+
+    if (!MountPointRe.IsMatch(mountPoint))
+    {
+      Console.WriteLine($"Error: mountPoint is invalid due to invalid characters: {mountPoint}");
       return false;
     }
 
@@ -55,10 +64,10 @@ public class MountService
     process.StartInfo.FileName = "mount";
     #if TARGET_MACOS
     process.StartInfo.WorkingDirectory = "/sbin";
-    process.StartInfo.Arguments = $"-w LABEL='{label}' '{mountPoint}'";
+    process.StartInfo.Arguments = $"-w LABEL='{label}' {mountPoint}";
     #else
     process.StartInfo.WorkingDirectory = "/bin";
-    process.StartInfo.Arguments = $"-rw LABEL='{label}' '{mountPoint}'";
+    process.StartInfo.Arguments = $"-rw LABEL='{label}' {mountPoint}";
     #endif
 
     process.StartInfo.UseShellExecute = false;
@@ -78,9 +87,9 @@ public class MountService
       return true;
     }
 
-    if (mountPoint.Contains('\''))
+    if (!MountPointRe.IsMatch(mountPoint))
     {
-      Console.WriteLine($"Error: mountPoint is invalid due to apostrophe: {mountPoint}");
+      Console.WriteLine($"Error: mountPoint contains invalid characters: {mountPoint}");
       return false;
     }
 
@@ -107,7 +116,7 @@ public class MountService
     var process = new Process();
     process.StartInfo.FileName = "umount";
     process.StartInfo.WorkingDirectory = "/usr/bin/";
-    process.StartInfo.Arguments = $"'{mountPoint}'";
+    process.StartInfo.Arguments = mountPoint;
 
     process.StartInfo.UseShellExecute = false;
     process.StartInfo.CreateNoWindow = true;
@@ -126,7 +135,7 @@ public class MountService
     var process = new Process();
     process.StartInfo.FileName = "mountpoint";
     process.StartInfo.WorkingDirectory = "/usr/bin/";
-    process.StartInfo.Arguments = $"'{mountPoint}'";
+    process.StartInfo.Arguments = mountPoint;
 
     process.StartInfo.UseShellExecute = false;
     process.StartInfo.CreateNoWindow = true;
