@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Text.Json;
+using Org.Grush.NasFileCopy.ServerSide.Config;
 using Org.Grush.NasFileCopy.ServerSide.SystemCom;
 
 namespace Org.Grush.NasFileCopy.ServerSide.Cli;
@@ -38,11 +39,11 @@ public class ListCommand
       {
         return 1;
       }
-      Console.WriteLine(JsonSerializer.Serialize(result));
+      Console.WriteLine(JsonSerializer.Serialize(result, JsonSettings.Options));
       return 0;
     }
 
-    Console.WriteLine(JsonSerializer.Serialize(_lsblkService.Output!));
+    Console.WriteLine(JsonSerializer.Serialize(_lsblkService.Output!, JsonSettings.Options));
     return 0;
   }
 }

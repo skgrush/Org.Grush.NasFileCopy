@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using Org.Grush.NasFileCopy.ServerSide.Config;
 
 namespace Org.Grush.NasFileCopy.ServerSide.SystemCom;
 
@@ -33,7 +34,7 @@ public class LockFileService
     var myProcess = Process.GetCurrentProcess();
     var contents = JsonSerializer.Serialize(new LockFileContents(
       Pid: myProcess.Id
-    ));
+    ), JsonSettings.Options);
 
     if (LockFileExists())
       throw new InvalidOperationException($"Call to {nameof(CreateLock)} while lock file exists");
@@ -86,7 +87,7 @@ public class LockFileService
     try
     {
       var txt = File.ReadAllText(LockPath);
-      return JsonSerializer.Deserialize<LockFileContents>(txt);
+      return JsonSerializer.Deserialize<LockFileContents>(txt, JsonSettings.Options);
     }
     catch
     {

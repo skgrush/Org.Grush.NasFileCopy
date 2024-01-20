@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using JetBrains.Annotations;
+using Org.Grush.NasFileCopy.ServerSide.Config;
 
 namespace Org.Grush.NasFileCopy.ServerSide.SystemCom;
 
@@ -63,10 +64,7 @@ public class LsblkService
 
     await process.WaitForExitAsync();
 
-    return JsonSerializer.Deserialize<T>(outputString, new JsonSerializerOptions()
-    {
-      PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    });
+    return JsonSerializer.Deserialize<T>(outputString, JsonSettings.Options);
   }
 
   private static LsblkOutput CombineOutputs(LsblkOutputBp block, LsblkOutputBpf fs)
