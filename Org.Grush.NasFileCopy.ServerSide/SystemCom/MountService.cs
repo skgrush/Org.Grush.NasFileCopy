@@ -51,8 +51,13 @@ public class MountService
     var process = new Process();
 
     process.StartInfo.FileName = "mount";
+    #if TARGET_MACOS
+    process.StartInfo.WorkingDirectory = "/sbin";
+    process.StartInfo.Arguments = $"-w LABEL='{label}' '{mountPoint}'";
+    #else
     process.StartInfo.WorkingDirectory = "/bin";
     process.StartInfo.Arguments = $"-rw LABEL='{label}' '{mountPoint}'";
+    #endif
 
     process.StartInfo.UseShellExecute = false;
     process.StartInfo.CreateNoWindow = true;
@@ -73,12 +78,24 @@ public record MountPoint(
 {
   public static MountPoint From(string raw)
   {
-    var parts = raw.Split(' ');
+    #if TARGET_MACOS
+    var parts = raw.Split(' ', 4, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+    var type = parts[3].split(',', 2)[0][1..];
+    return new(
+      Name: parts[0],
+      Path: parts[2],
+      Type: type,
+      RawFlags: parts[3]
+    );
+
+    #else
+    var parts = raw.Split(' ', 6, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
     return new(
       Name: parts[0],
       Path: parts[2],
       Type: parts[4],
       RawFlags: parts[5]
     );
+    #endif
   }
 }

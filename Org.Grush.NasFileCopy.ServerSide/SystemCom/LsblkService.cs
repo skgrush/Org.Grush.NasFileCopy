@@ -9,8 +9,6 @@ namespace Org.Grush.NasFileCopy.ServerSide.SystemCom;
 
 public class LsblkService
 {
-  private const bool LocalTest = true;
-
   public LsblkOutput? Output { get; private set; }
 
   public async Task<bool> ReadLsblk()
@@ -39,21 +37,18 @@ public class LsblkService
   {
     var process = new Process();
 
-    if (LocalTest)
-    {
-      process.StartInfo.WorkingDirectory = "/bin";
-      process.StartInfo.FileName = "bash";
-      process.StartInfo.Arguments =
-        args.Contains("-f")
-          ? $"/Users/samuel/repos/Org.Grush.NasFileCopy/lsblk-fs --json {args}"
-          : $"/Users/samuel/repos/Org.Grush.NasFileCopy/lsblk --json {args}";
-    }
-    else
-    {
-      process.StartInfo.FileName = "lsblk";
-      process.StartInfo.WorkingDirectory = "/bin";
-      process.StartInfo.Arguments = args;
-    }
+#if TARGET_MACOS
+    process.StartInfo.WorkingDirectory = "/bin";
+    process.StartInfo.FileName = "bash";
+    process.StartInfo.Arguments =
+      args.Contains("-f")
+        ? $"/Users/samuel/repos/Org.Grush.NasFileCopy/lsblk-fs --json {args}"
+        : $"/Users/samuel/repos/Org.Grush.NasFileCopy/lsblk --json {args}";
+#else
+    process.StartInfo.FileName = "lsblk";
+    process.StartInfo.WorkingDirectory = "/bin";
+    process.StartInfo.Arguments = args;
+#endif
 
     process.StartInfo.UseShellExecute = false;
     process.StartInfo.CreateNoWindow = true;
