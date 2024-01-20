@@ -85,9 +85,9 @@ public class CopyCommand
     var destinationDevice = _lsblkService.Find(dev => dev.Label == destinationLabel && dev.Type == "partition").Single();
 
     string mountPoint;
-    if (!destinationDevice.Mountpoints.Any(m => m is not null))
+    if (!destinationDevice.MountPoints.Any(m => m is not null))
     {
-      mountPoint = destinationDevice.Mountpoints.First(m => m is not null)!;
+      mountPoint = destinationDevice.MountPoints.First(m => m is not null)!;
     }
     else
     {

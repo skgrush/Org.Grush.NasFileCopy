@@ -97,7 +97,7 @@ public class LockFileService
   }
 
   /// <summary>
-  ///
+  /// Delete the lock file if any.
   /// </summary>
   /// <returns>true if deleted.</returns>
   private bool DeleteLockFile()
