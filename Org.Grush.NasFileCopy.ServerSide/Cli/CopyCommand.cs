@@ -81,7 +81,13 @@ public class CopyCommand
 
     await _lsblkService.ReadLsblk();
 
-    var destinationDevice = _lsblkService.Find(dev => dev.Label == destinationLabel && dev.Type == "part").Single();
+    var destinationDevice = _lsblkService.Find(dev => dev.Label == destinationLabel && dev.Type == "part").FirstOrDefault();
+
+    if (destinationDevice is null)
+    {
+      Console.WriteLine($"Failed to find destination partition named {destinationLabel}");
+      return 4;
+    }
 
     // get a lock and make sure it's cleaned up afterwards
     using var handle = _lockFileService.CreateLock();
