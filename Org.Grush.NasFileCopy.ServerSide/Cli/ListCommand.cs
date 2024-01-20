@@ -6,11 +6,14 @@ namespace Org.Grush.NasFileCopy.ServerSide.Cli;
 
 public class ListCommand
 {
+  private readonly LsblkService _lsblkService;
+  
   private Option<string?> LabelOption { get; }
   public Command Command { get; }
   
-  public ListCommand()
+  public ListCommand(LsblkService lsblkService)
   {
+    _lsblkService = lsblkService;
     LabelOption = new Option<string?>(
       name: "--label",
       description: "The user-facing device label"
@@ -25,13 +28,12 @@ public class ListCommand
 
   private async Task<int> Handle(string? label)
   {
-    var lsblkService = new LsblkService();
 
-    await lsblkService.ReadLsblk();
+    await _lsblkService.ReadLsblk();
 
     if (label is null)
     {
-      var result = lsblkService.Find(dev => dev.Label == label).FirstOrDefault();
+      var result = _lsblkService.Find(dev => dev.Label == label).FirstOrDefault();
       if (result is null)
       {
         return 1;
@@ -40,7 +42,7 @@ public class ListCommand
       return 0;
     }
     
-    Console.WriteLine(JsonSerializer.Serialize(lsblkService.Output!));
+    Console.WriteLine(JsonSerializer.Serialize(_lsblkService.Output!));
     return 0;
   }
 }
