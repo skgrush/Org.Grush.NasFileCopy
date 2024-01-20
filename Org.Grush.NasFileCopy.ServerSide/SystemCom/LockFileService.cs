@@ -81,7 +81,7 @@ public class LockFileService
 
   private LockFileContents? ReadLockFile()
   {
-    if (LockFileExists())
+    if (!LockFileExists())
       return null;
 
     try
