@@ -81,7 +81,7 @@ public class CopyCommand
 
     await _lsblkService.ReadLsblk();
 
-    var destinationDevice = _lsblkService.Find(dev => dev.Label == destinationLabel && dev.Type == "partition").Single();
+    var destinationDevice = _lsblkService.Find(dev => dev.Label == destinationLabel && dev.Type == "part").Single();
 
     string mountPoint;
     string destinationMountPoint;
