@@ -87,7 +87,7 @@ public class CopyCommand
     using var handle = _lockFileService.CreateLock();
 
     string destinationMountPoint;
-    if (!destinationDevice.MountPoints.Any(m => m is not null))
+    if (destinationDevice.MountPoints.Any(m => m is not null))
     {
       destinationMountPoint = destinationDevice.MountPoints.First(m => m is not null)!;
     }
@@ -100,7 +100,7 @@ public class CopyCommand
       var success = await _mountService.Mount(destinationLabel, destinationMountPoint);
       if (!success)
       {
-        Console.WriteLine($"Failed to mount {destinationLabel} to ${destinationMountPoint}");
+        Console.WriteLine($"Failed to mount {destinationLabel} to {destinationMountPoint}");
         return 2;
       }
     }
