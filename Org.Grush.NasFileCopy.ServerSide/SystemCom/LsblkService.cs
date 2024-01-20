@@ -83,9 +83,26 @@ public record LsblkOutput(
   }
 }
 
+
+/// <summary>
+/// Describes all output from lsblk calls with and without `-f`.
+/// </summary>
+/// <param name="Name">The device path name</param>
+/// <param name="MajMin">"major:minor" device numbers</param>
+/// <param name="Rm">Removable-device flag</param>
+/// <param name="Size">Size in bytes</param>
+/// <param name="Ro">Readonly-device flag</param>
+/// <param name="Type">"disk" or "part"</param>
+/// <param name="Mountpoints">Filesystem mount point path, or special string such as "[SWAP]"</param>
+/// <param name="Fstype">type, e.g. vfat, swap, zfs_member, exfat</param>
+/// <param name="Fsver">version, e.g. FAT32, 1, 5000, 1.0</param>
+/// <param name="Label">Optional user-facing partition label</param>
+/// <param name="Uuid">fstype-specific identifier</param>
+/// <param name="Children">Child devices, or null on leaf nodes</param>
 public record LsblkDevice(
   string Name,
-  string MajMin,
+  int MajorDeviceNumber,
+  int MinorDeviceNumber,
   bool Rm,
   long Size,
   bool Ro,
@@ -109,9 +126,14 @@ public record LsblkDevice(
         .ToList();
     }
 
+    var majMinParts = block.MajMin.Split(':').Select(int.Parse).ToList();
+    if (majMinParts.Count is not 2)
+      throw new InvalidOperationException($"MajMin must be number:number, got {block.MajMin}");
+
     return new(
       Name: block.Name,
-      MajMin: block.MajMin,
+      MajorDeviceNumber: majMinParts[0],
+      MinorDeviceNumber: majMinParts[1],
       Rm: block.Rm,
       Size: block.Size,
       Ro: block.Ro,
@@ -136,17 +158,6 @@ public interface ILsblkDeviceB<T>
   IReadOnlyList<T>? Children { get; }
 }
 
-/// <summary>
-/// 
-/// </summary>
-/// <param name="Name">The device path name</param>
-/// <param name="MajMin">"major:minor" device numbers</param>
-/// <param name="Rm">Removable-device flag</param>
-/// <param name="Size">Size in bytes</param>
-/// <param name="Ro">Readonly-device flag</param>
-/// <param name="Type">"disk" or "part"</param>
-/// <param name="Mountpoints">??? Only seen this labelled for swap "[SWAP]"</param>
-/// <param name="Children"></param>
 public record LsblkBlockDeviceBP(
   string Name,
   [property:JsonPropertyName("maj:min")]
@@ -164,16 +175,6 @@ public record LsblkOutputBPF(
   IReadOnlyList<LsblkFilesystemDeviceBPF> BlockDevices
 );
 
-/// <summary>
-/// lsblk with -bpf the filesystem options.
-/// </summary>
-/// <param name="Name">The device path name</param>
-/// <param name="Fstype">type, e.g. vfat, swap, zfs_member, exfat</param>
-/// <param name="Fsver">version, e.g. FAT32, 1, 5000, 1.0</param>
-/// <param name="Label">Optional user-facing partition label</param>
-/// <param name="Uuid">fstype-specific identifier</param>
-/// <param name="Mountpoints">??? Only seen this labelled for swap "[SWAP]"</param>
-/// <param name="Children">For parent nodes, contains the child nodes</param>
 public record LsblkFilesystemDeviceBPF(
   string Name,
   string? Fstype,
