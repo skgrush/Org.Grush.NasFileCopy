@@ -31,7 +31,7 @@ public class ListCommand
 
     await _lsblkService.ReadLsblk();
 
-    if (label is null)
+    if (label is not null)
     {
       var result = _lsblkService.Find(dev => dev.Label == label).FirstOrDefault();
       if (result is null)
