@@ -65,19 +65,18 @@ public class CopyCommand
       return 100;
     }
 
-    var mountedSource = (await _mountService.ReadMounts())
-      .FirstOrDefault(mnt => mnt.Name == sourceName);
+    var viableSources = (await _mountService.ReadMounts())
+      .Where(mnt => mnt.Path.StartsWith("/mnt/"))
+      .ToList();
+
+    var mountedSource = viableSources.FirstOrDefault(mnt => mnt.Name == sourceName);
 
     if (mountedSource is null)
     {
-      Console.WriteLine($"Source dataset {sourceName} does not appear to be mounted");
+      Console.WriteLine($"Source dataset {sourceName} does not appear to be mounted or not mounted in /mnt/");
+      var opts = string.Join(", ", viableSources.Select(mnt => mnt.Name));
+      Console.WriteLine($"Acceptable sources: {opts}");
       return 3;
-    }
-
-    if (!mountedSource.Path.StartsWith("/mnt/"))
-    {
-      Console.WriteLine($"Source mount point is not in /mnt/, likely incorrect: {mountedSource.Path}");
-      return 4;
     }
 
     await _lsblkService.ReadLsblk();
@@ -85,20 +84,21 @@ public class CopyCommand
     var destinationDevice = _lsblkService.Find(dev => dev.Label == destinationLabel && dev.Type == "partition").Single();
 
     string mountPoint;
+    string destinationMountPoint;
     if (!destinationDevice.MountPoints.Any(m => m is not null))
     {
-      mountPoint = destinationDevice.MountPoints.First(m => m is not null)!;
+      destinationMountPoint = destinationDevice.MountPoints.First(m => m is not null)!;
     }
     else
     {
       Console.WriteLine("Attempting to mount");
       var name = SanitizeName(destinationLabel);
-      mountPoint = $"/mnt/{name}";
+      destinationMountPoint = $"/mnt/{name}";
 
-      var success = await _mountService.Mount(destinationLabel, mountPoint);
+      var success = await _mountService.Mount(destinationLabel, destinationMountPoint);
       if (!success)
       {
-        Console.WriteLine($"Failed to mount {destinationLabel} to ${mountPoint}");
+        Console.WriteLine($"Failed to mount {destinationLabel} to ${destinationMountPoint}");
         return 2;
       }
     }
