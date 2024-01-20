@@ -10,7 +10,7 @@ public class RsyncService
   {
     if (src.Contains('\'') || dest.Contains('\''))
       throw new ArgumentException($"invalid src or dest due to apostrophe {src}|{dest}");
-    
+
     var process = new Process();
 
     process.StartInfo.FileName = "rsync";

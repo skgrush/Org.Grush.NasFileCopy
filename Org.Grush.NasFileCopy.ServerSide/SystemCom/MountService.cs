@@ -10,7 +10,7 @@ public class MountService
 
     process.StartInfo.FileName = "mount";
     process.StartInfo.WorkingDirectory = "/bin";
-    
+
     process.StartInfo.UseShellExecute = false;
     process.StartInfo.CreateNoWindow = true;
     process.StartInfo.RedirectStandardOutput = true;
@@ -34,9 +34,9 @@ public class MountService
       Console.WriteLine($"Error: label or mountPoint is invalid due to apostrophe: {label}|{mountPoint}");
       return false;
     }
-    
+
     var mounts = await ReadMounts();
-    
+
     if (!File.Exists(mountPoint))
     {
       Console.WriteLine($"Creating mount point {mountPoint}");
@@ -47,13 +47,13 @@ public class MountService
       Console.WriteLine($"Error: cannot mount to {mountPoint} as it is already in use");
       return false;
     }
-    
+
     var process = new Process();
 
     process.StartInfo.FileName = "mount";
     process.StartInfo.WorkingDirectory = "/bin";
     process.StartInfo.Arguments = $"-rw LABEL='{label}' '{mountPoint}'";
-    
+
     process.StartInfo.UseShellExecute = false;
     process.StartInfo.CreateNoWindow = true;
     process.Start();

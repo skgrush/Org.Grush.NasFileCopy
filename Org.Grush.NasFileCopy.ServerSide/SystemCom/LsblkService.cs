@@ -7,9 +7,9 @@ namespace Org.Grush.NasFileCopy.ServerSide.SystemCom;
 public class LsblkService
 {
   private const bool localTest = true;
-  
+
   public LsblkOutput? Output { get; private set; }
-  
+
   public async Task<bool> ReadLsblk()
   {
     var fullBlockOutput = await ReadLsblkWithArgs<LsblkOutputBP>("-b -p");
@@ -51,7 +51,7 @@ public class LsblkService
       process.StartInfo.WorkingDirectory = "/bin";
       process.StartInfo.Arguments = args;
     }
-    
+
     process.StartInfo.UseShellExecute = false;
     process.StartInfo.CreateNoWindow = true;
     process.StartInfo.RedirectStandardOutput = true;

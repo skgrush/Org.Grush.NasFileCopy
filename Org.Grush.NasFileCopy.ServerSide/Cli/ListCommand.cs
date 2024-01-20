@@ -7,10 +7,10 @@ namespace Org.Grush.NasFileCopy.ServerSide.Cli;
 public class ListCommand
 {
   private readonly LsblkService _lsblkService;
-  
+
   private Option<string?> LabelOption { get; }
   public Command Command { get; }
-  
+
   public ListCommand(LsblkService lsblkService)
   {
     _lsblkService = lsblkService;
@@ -22,7 +22,7 @@ public class ListCommand
     {
       LabelOption,
     };
-    
+
     Command.SetHandler(Handle, LabelOption);
   }
 
@@ -41,7 +41,7 @@ public class ListCommand
       Console.WriteLine(JsonSerializer.Serialize(result));
       return 0;
     }
-    
+
     Console.WriteLine(JsonSerializer.Serialize(_lsblkService.Output!));
     return 0;
   }
