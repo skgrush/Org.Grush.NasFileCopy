@@ -5,8 +5,7 @@ using Org.Grush.NasFileCopy.ServerSide.Cli;
 
 var rootCommand = new RootCommand("Server-side NasFileCopy CLI");
 
-var listCommand = new ListCommand();
-
-rootCommand.AddCommand(listCommand.Command);
+rootCommand.AddCommand(new ListCommand().Command);
+rootCommand.AddCommand(new CopyCommand().Command);
 
 return await rootCommand.InvokeAsync(args);

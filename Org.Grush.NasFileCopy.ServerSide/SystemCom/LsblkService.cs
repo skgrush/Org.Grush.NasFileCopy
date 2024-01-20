@@ -40,12 +40,15 @@ public class LsblkService
     {
       process.StartInfo.WorkingDirectory = "/bin";
       process.StartInfo.FileName = "bash";
-      process.StartInfo.Arguments = $"/Users/samuel/repos/Org.Grush.NasFileCopy/lsblk --json {args}";
+      process.StartInfo.Arguments =
+        args.Contains("-f")
+        ? $"/Users/samuel/repos/Org.Grush.NasFileCopy/lsblk-fs --json {args}"
+        : $"/Users/samuel/repos/Org.Grush.NasFileCopy/lsblk --json {args}";
     }
     else
     {
       process.StartInfo.FileName = "lsblk";
-      process.StartInfo.WorkingDirectory = "/usr/bin";
+      process.StartInfo.WorkingDirectory = "/bin";
       process.StartInfo.Arguments = args;
     }
     
