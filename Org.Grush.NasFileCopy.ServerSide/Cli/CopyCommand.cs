@@ -83,7 +83,9 @@ public class CopyCommand
 
     var destinationDevice = _lsblkService.Find(dev => dev.Label == destinationLabel && dev.Type == "part").Single();
 
-    string mountPoint;
+    // get a lock and make sure it's cleaned up afterwards
+    using var handle = _lockFileService.CreateLock();
+
     string destinationMountPoint;
     if (!destinationDevice.MountPoints.Any(m => m is not null))
     {
@@ -103,14 +105,14 @@ public class CopyCommand
       }
     }
 
-    // get a lock and make sure it's cleaned up afterwards
-    using var handle = _lockFileService.CreateLock();
-
-    var syncSuccess = await _rsyncService.Sync(mountedSource.Path, mountPoint);
+    var syncSuccess = await _rsyncService.Sync(mountedSource.Path, destinationMountPoint);
     if (syncSuccess)
     {
       Console.WriteLine("Sync succeeded!");
     }
+
+    var unmountSuccess = await _mountService.Unmount(destinationMountPoint);
+
     return syncSuccess ? 255 : 0;
   }
 

@@ -4,6 +4,8 @@ namespace Org.Grush.NasFileCopy.ServerSide.SystemCom;
 
 public class MountService
 {
+  public static readonly TimeSpan UnmountTimeout = new(0, 0, seconds: 3);
+
   public async Task<IReadOnlyList<MountPoint>> ReadMounts()
   {
     var process = new Process();
@@ -37,7 +39,7 @@ public class MountService
 
     var mounts = await ReadMounts();
 
-    if (!File.Exists(mountPoint))
+    if (!Directory.Exists(mountPoint))
     {
       Console.WriteLine($"Creating mount point {mountPoint}");
       Directory.CreateDirectory(mountPoint);
@@ -66,6 +68,75 @@ public class MountService
     await process.WaitForExitAsync();
 
     return process.ExitCode is 0;
+  }
+
+  public async Task<bool> Unmount(string mountPoint)
+  {
+    if (!Directory.Exists(mountPoint))
+    {
+      Console.WriteLine($"mount point {mountPoint} doesn't exist, skipping unmount");
+      return true;
+    }
+
+    if (mountPoint.Contains('\''))
+    {
+      Console.WriteLine($"Error: mountPoint is invalid due to apostrophe: {mountPoint}");
+      return false;
+    }
+
+
+    while (await IsActiveMountPoint(mountPoint))
+    {
+      var success = await CallUmount(mountPoint);
+
+      if (success)
+      {
+        Console.WriteLine("Successfully unmounted.");
+        break;
+      }
+
+      Console.Write(".");
+      await Task.Delay(UnmountTimeout);
+    }
+
+    return true;
+  }
+
+  private async Task<bool> CallUmount(string mountPoint)
+  {
+    var process = new Process();
+    process.StartInfo.FileName = "umount";
+    process.StartInfo.WorkingDirectory = "/usr/bin/";
+    process.StartInfo.Arguments = $"'{mountPoint}'";
+
+    process.StartInfo.UseShellExecute = false;
+    process.StartInfo.CreateNoWindow = true;
+    // process.StartInfo.RedirectStandardOutput = true;
+    process.Start();
+
+    // var outputString = await process.StandardOutput.ReadToEndAsync();
+
+    await process.WaitForExitAsync();
+
+    return process.ExitCode is 0;
+  }
+
+  private async Task<bool> IsActiveMountPoint(string mountPoint)
+  {
+    var process = new Process();
+    process.StartInfo.FileName = "mountpoint";
+    process.StartInfo.WorkingDirectory = "/usr/bin/";
+    process.StartInfo.Arguments = $"'{mountPoint}'";
+
+    process.StartInfo.UseShellExecute = false;
+    process.StartInfo.CreateNoWindow = true;
+    process.Start();
+
+    await process.WaitForExitAsync();
+
+    var code = process.ExitCode;
+
+    return code is 0;
   }
 }
 
