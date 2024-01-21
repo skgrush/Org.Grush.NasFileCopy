@@ -3,7 +3,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using JetBrains.Annotations;
-using Org.Grush.NasFileCopy.ServerSide.Config;
 
 namespace Org.Grush.NasFileCopy.ServerSide.SystemCom.linux;
 
@@ -11,8 +10,8 @@ public class LinuxLsblkService : LsblkService
 {
   public override async Task<bool> ReadLsblk()
   {
-    var fullBlockOutput = await ReadLsblkWithArgs<LsblkOutputBp>("-b -p");
-    var fullFilesystemOutput = await ReadLsblkWithArgs<LsblkOutputBpf>("-b -p -f");
+    var fullBlockOutput = await ReadLsblkWithArgs("-b -p", LsblkOutputBp.Deserialize);
+    var fullFilesystemOutput = await ReadLsblkWithArgs("-b -p -f", LsblkOutputBpf.Deserialize);
 
     if (fullBlockOutput is null || fullFilesystemOutput is null)
       return false;
@@ -21,7 +20,7 @@ public class LinuxLsblkService : LsblkService
     return true;
   }
 
-  private async Task<T?> ReadLsblkWithArgs<T>(string args)
+  private async Task<T?> ReadLsblkWithArgs<T>(string args, Func<string, T> deserialize)
   {
     var process = new Process();
 
@@ -38,7 +37,7 @@ public class LinuxLsblkService : LsblkService
 
     await process.WaitForExitAsync();
 
-    return JsonSerializer.Deserialize<T>(outputString, JsonSettings.Options);
+    return deserialize(outputString);
   }
 
   private static LsblkOutput CombineOutputs(LsblkOutputBp block, LsblkOutputBpf fs)
@@ -83,48 +82,69 @@ public class LinuxLsblkService : LsblkService
       Children: children
     );
   }
-
-  [UsedImplicitly]
-  private record LsblkOutputBp(
-    // ReSharper disable once StringLiteralTypo
-    [property: JsonPropertyName("blockdevices")]
-    IReadOnlyList<LsblkBlockDeviceBp> BlockDevices
-  );
-
-  [UsedImplicitly]
-  private record LsblkBlockDeviceBp(
-    string Name,
-    [property: JsonPropertyName("maj:min")]
-    string MajMin,
-    bool Rm,
-    long Size,
-    bool Ro,
-    string Type,
-    // ReSharper disable once StringLiteralTypo
-    [property: JsonPropertyName("mountpoints")]
-    IReadOnlyList<string?> MountPoints,
-    IReadOnlyList<LsblkBlockDeviceBp>? Children
-  );
-
-  [UsedImplicitly]
-  private record LsblkOutputBpf(
-    // ReSharper disable once StringLiteralTypo
-    [property: JsonPropertyName("blockdevices")]
-    IReadOnlyList<LsblkFilesystemDeviceBpf> BlockDevices
-  );
-
-  [UsedImplicitly]
-  [SuppressMessage("ReSharper", "StringLiteralTypo")]
-  private record LsblkFilesystemDeviceBpf(
-    string Name,
-    [property: JsonPropertyName("fstype")]
-    string? FsType,
-    [property: JsonPropertyName("fsver")]
-    string? FsVer,
-    string? Label,
-    string? Uuid,
-    [property: JsonPropertyName("mountpoints")]
-    IReadOnlyList<string?> MountPoints,
-    IReadOnlyList<LsblkFilesystemDeviceBpf>? Children
-  );
 }
+
+[UsedImplicitly]
+public record LsblkOutputBp(
+  // ReSharper disable once StringLiteralTypo
+  [property: JsonPropertyName("blockdevices")]
+  IReadOnlyList<LsblkBlockDeviceBp> BlockDevices
+)
+{
+  public static LsblkOutputBp Deserialize(string input)
+    => JsonSerializer.Deserialize(input, LinuxLsblkContext.Default.LsblkOutputBp);
+}
+
+[UsedImplicitly]
+public record LsblkBlockDeviceBp(
+  string Name,
+  [property: JsonPropertyName("maj:min")]
+  string MajMin,
+  bool Rm,
+  long Size,
+  bool Ro,
+  string Type,
+  // ReSharper disable once StringLiteralTypo
+  [property: JsonPropertyName("mountpoints")]
+  IReadOnlyList<string?> MountPoints,
+  IReadOnlyList<LsblkBlockDeviceBp>? Children
+);
+
+[UsedImplicitly]
+public record LsblkOutputBpf(
+  // ReSharper disable once StringLiteralTypo
+  [property: JsonPropertyName("blockdevices")]
+  IReadOnlyList<LsblkFilesystemDeviceBpf> BlockDevices
+)
+{
+  public static LsblkOutputBpf Deserialize(string input)
+    => JsonSerializer.Deserialize(input, LinuxLsblkContext.Default.LsblkOutputBpf);
+}
+
+[UsedImplicitly]
+[SuppressMessage("ReSharper", "StringLiteralTypo")]
+public record LsblkFilesystemDeviceBpf(
+  string Name,
+  [property: JsonPropertyName("fstype")]
+  string? FsType,
+  [property: JsonPropertyName("fsver")]
+  string? FsVer,
+  string? Label,
+  string? Uuid,
+  [property: JsonPropertyName("mountpoints")]
+  IReadOnlyList<string?> MountPoints,
+  IReadOnlyList<LsblkFilesystemDeviceBpf>? Children
+);
+
+[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(LsblkOutputBp))]
+[JsonSerializable(typeof(LsblkOutputBpf))]
+[JsonSerializable(typeof(LsblkBlockDeviceBp))]
+[JsonSerializable(typeof(LsblkFilesystemDeviceBpf))]
+[JsonSerializable(typeof(IReadOnlyList<LsblkBlockDeviceBp>))]
+[JsonSerializable(typeof(IReadOnlyList<LsblkFilesystemDeviceBpf>))]
+[JsonSerializable(typeof(string))]
+[JsonSerializable(typeof(bool))]
+[JsonSerializable(typeof(long))]
+[JsonSerializable(typeof(IReadOnlyList<string?>))]
+public partial class LinuxLsblkContext : JsonSerializerContext;

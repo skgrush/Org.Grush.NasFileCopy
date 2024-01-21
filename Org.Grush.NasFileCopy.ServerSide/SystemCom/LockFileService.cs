@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
-using Org.Grush.NasFileCopy.ServerSide.Config;
+using System.Text.Json.Serialization;
 
 namespace Org.Grush.NasFileCopy.ServerSide.SystemCom;
 
@@ -32,9 +32,9 @@ public class LockFileService
   public LockFileHandle CreateLock()
   {
     var myProcess = Process.GetCurrentProcess();
-    var contents = JsonSerializer.Serialize(new LockFileContents(
+    var contents = new LockFileContents(
       Pid: myProcess.Id
-    ), JsonSettings.Options);
+    ).Serialize();
 
     if (LockFileExists())
       throw new InvalidOperationException($"Call to {nameof(CreateLock)} while lock file exists");
@@ -87,7 +87,7 @@ public class LockFileService
     try
     {
       var txt = File.ReadAllText(LockPath);
-      return JsonSerializer.Deserialize<LockFileContents>(txt, JsonSettings.Options);
+      return LockFileContents.Deserialize(txt);
     }
     catch
     {
@@ -117,10 +117,6 @@ public class LockFileService
       return false;
     }
   }
-
-  private record LockFileContents(
-    int Pid
-  );
 
   public class LockFileHandle : IDisposable
   {
@@ -161,3 +157,18 @@ public class LockFileService
   }
 }
 
+public record LockFileContents(
+  int Pid
+)
+{
+  public string Serialize()
+    => JsonSerializer.Serialize(this, LockFileContentsContext.Default.LockFileContents);
+
+  public static LockFileContents Deserialize(string str)
+    => JsonSerializer.Deserialize(str, LockFileContentsContext.Default.LockFileContents);
+}
+
+[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(LockFileContents))]
+[JsonSerializable(typeof(int))]
+public partial class LockFileContentsContext : JsonSerializerContext;

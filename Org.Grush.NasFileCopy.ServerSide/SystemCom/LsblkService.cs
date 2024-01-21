@@ -1,4 +1,8 @@
 
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Org.Grush.NasFileCopy.ServerSide.Config;
+
 namespace Org.Grush.NasFileCopy.ServerSide.SystemCom;
 
 public abstract class LsblkService
@@ -20,7 +24,11 @@ public abstract class LsblkService
 
 public record LsblkOutput(
   IReadOnlyList<LsblkDevice> BlockDevices
-);
+)
+{
+  public string Serialize()
+    => JsonSerializer.Serialize(this, LsblkDeviceContext.Default.LsblkOutput);
+}
 
 // ReSharper disable NotAccessedPositionalProperty.Global
 
@@ -54,4 +62,19 @@ public record LsblkDevice(
   string? Label,
   string? Uuid,
   IReadOnlyList<LsblkDevice>? Children
-);
+) : ISerializableRecord
+{
+  public string Serialize()
+    => JsonSerializer.Serialize(this, LsblkDeviceContext.Default.LsblkDevice);
+}
+
+[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(LsblkDevice))]
+[JsonSerializable(typeof(string))]
+[JsonSerializable(typeof(bool))]
+[JsonSerializable(typeof(int))]
+[JsonSerializable(typeof(long))]
+[JsonSerializable(typeof(IReadOnlyList<string?>))]
+[JsonSerializable(typeof(IReadOnlyList<LsblkDevice>))]
+[JsonSerializable(typeof(LsblkOutput))]
+public partial class LsblkDeviceContext : JsonSerializerContext;
