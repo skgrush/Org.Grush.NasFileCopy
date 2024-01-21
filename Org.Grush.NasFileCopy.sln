@@ -1,8 +1,10 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Grush.NasFileCopy.ClientSide", "Org.Grush.NasFileCopy.ClientSide\Org.Grush.NasFileCopy.ClientSide.csproj", "{D83D59A2-CFF1-4741-877F-89AA79CC9E0F}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Grush.NasFileCopy.ServerSide", "Org.Grush.NasFileCopy.ServerSide\Org.Grush.NasFileCopy.ServerSide.csproj", "{AB7E372D-8B84-4091-A131-24E298E49781}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Org.Grush.NasFileCopy.ClientSide", "Org.Grush.NasFileCopy.ClientSide", "{0AB00784-42AB-458C-9533-EF1852621A4F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Grush.NasFileCopy.ClientSide.Shared", "Org.Grush.NasFileCopy.ClientSide\Org.Grush.NasFileCopy.ClientSide.Shared\Org.Grush.NasFileCopy.ClientSide.Shared.csproj", "{82E37F8A-9522-420B-B955-DE053AFC0864}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -10,13 +12,16 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{D83D59A2-CFF1-4741-877F-89AA79CC9E0F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D83D59A2-CFF1-4741-877F-89AA79CC9E0F}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D83D59A2-CFF1-4741-877F-89AA79CC9E0F}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D83D59A2-CFF1-4741-877F-89AA79CC9E0F}.Release|Any CPU.Build.0 = Release|Any CPU
 		{AB7E372D-8B84-4091-A131-24E298E49781}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{AB7E372D-8B84-4091-A131-24E298E49781}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AB7E372D-8B84-4091-A131-24E298E49781}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AB7E372D-8B84-4091-A131-24E298E49781}.Release|Any CPU.Build.0 = Release|Any CPU
+		{82E37F8A-9522-420B-B955-DE053AFC0864}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{82E37F8A-9522-420B-B955-DE053AFC0864}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{82E37F8A-9522-420B-B955-DE053AFC0864}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{82E37F8A-9522-420B-B955-DE053AFC0864}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{82E37F8A-9522-420B-B955-DE053AFC0864} = {0AB00784-42AB-458C-9533-EF1852621A4F}
 	EndGlobalSection
 EndGlobal
