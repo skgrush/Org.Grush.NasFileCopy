@@ -88,7 +88,8 @@ public class NasComSshClient
       return true;
     }
 
-    Console.WriteLine($"Error, exit status {runner.ExitStatus}: {runner.Error}");
+    var exitMessage = ExitCodeToMessage((CopyCommandExitCodes)runner.ExitStatus);
+    Console.WriteLine($"Error, exit status {runner.ExitStatus} ({exitMessage}): {runner.Error}");
     return false;
   }
 
@@ -117,5 +118,12 @@ public class NasComSshClient
       // wait 10 ms
       await Task.Delay(10, cancellationToken);
     }
+  }
+
+  private string ExitCodeToMessage(CopyCommandExitCodes exitCode)
+  {
+    return !Enum.IsDefined(exitCode)
+      ? "UNDEFINED" :
+      exitCode.ToString();
   }
 }

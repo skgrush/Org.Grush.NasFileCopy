@@ -1,5 +1,6 @@
 using System.CommandLine;
 using Org.Grush.NasFileCopy.ServerSide.SystemCom;
+using Org.Grush.NasFileCopy.Structures;
 
 namespace Org.Grush.NasFileCopy.ServerSide.Cli;
 
@@ -45,24 +46,24 @@ public class CopyCommand
     Command.SetHandler(Handle, DestinationDeviceLabelOption, SourceNameOption, ForceKillOtherProcess);
   }
 
-  private async Task<int> Handle(string? destinationLabel, string? sourceName, bool? forceKill)
+  private async Task<CopyCommandExitCodes> Handle(string? destinationLabel, string? sourceName, bool? forceKill)
   {
     if (destinationLabel is null)
     {
       Console.WriteLine($"Missing {nameof(destinationLabel)}");
-      return 1;
+      return CopyCommandExitCodes.OkOrHelp;
     }
 
     if (sourceName is null)
     {
       Console.WriteLine($"Missing {nameof(sourceName)}");
-      return 1;
+      return CopyCommandExitCodes.ArgumentOrCliIssue;
     }
 
     if (_lockFileService.CheckForLockedProcess(killIfExists: forceKill ?? false))
     {
       Console.WriteLine("A NasFileCopy process is already running");
-      return 100;
+      return CopyCommandExitCodes.ProcessAlreadyRunning;
     }
 
     var viableSources = (await _mountService.ReadMounts())
@@ -76,17 +77,15 @@ public class CopyCommand
       Console.WriteLine($"Source dataset {sourceName} does not appear to be mounted or not mounted in /mnt/");
       var opts = string.Join(", ", viableSources.Select(mnt => mnt.Name));
       Console.WriteLine($"Acceptable sources: {opts}");
-      return 3;
+      return CopyCommandExitCodes.BadSourceDataSet;
     }
 
     await _lsblkService.ReadLsblk();
 
-    var destinationDevice = _lsblkService.Find(dev => dev.Label == destinationLabel && dev.Type == "part").FirstOrDefault();
+    var destinationDevice = _lsblkService.Find(dev => dev.Label == destinationLabel && dev is { Rm: true, Type: "part" }).FirstOrDefault();
 
     if (destinationDevice is null)
     {
-      Console.WriteLine($"Failed to find destination partition named {destinationLabel}");
-      return 4;
       Console.WriteLine($"Failed to find removable destination partition named {destinationLabel}");
       var viableOptions = _lsblkService.Find(dev => dev is { Rm: true, Type: "part" }).ToList();
 
@@ -95,6 +94,7 @@ public class CopyCommand
       {
         Console.WriteLine($"  '{dev.Label}' : size={dev.Size:N}");
       }
+      return CopyCommandExitCodes.BadDestinationLabel;
     }
 
     // get a lock and make sure it's cleaned up afterwards
@@ -115,7 +115,7 @@ public class CopyCommand
       if (!success)
       {
         Console.WriteLine($"Failed to mount {destinationLabel} to {destinationMountPoint}");
-        return 2;
+        return CopyCommandExitCodes.MountFailure;
       }
     }
 
@@ -125,9 +125,10 @@ public class CopyCommand
       Console.WriteLine("Sync succeeded!");
     }
 
+    // Failed unmount is not a critical issue
     var unmountSuccess = await _mountService.Unmount(destinationMountPoint);
 
-    return syncSuccess ? 0 : 255;
+    return syncSuccess ? CopyCommandExitCodes.OkOrHelp : CopyCommandExitCodes.SyncFailure;
   }
 
   private static string SanitizeName(string name)
