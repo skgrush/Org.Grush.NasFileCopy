@@ -1,19 +1,8 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 using Org.Grush.NasFileCopy.Structures;
 using Renci.SshNet;
 
 namespace Org.Grush.NasFileCopy.ClientSide.Shared;
-
-public record struct SshCredentials(
-  string Host,
-  string Username,
-  [property: MemberNotNullWhen(true, nameof(Password))]
-  [property: MemberNotNullWhen(false, nameof(Key))]
-  bool UsesPassword,
-  string? Password,
-  string? Key
-);
 
 public class NasComSshClient
 {
@@ -48,7 +37,7 @@ public class NasComSshClient
         ?$"{ServerBinPath} list"
         : $"{ServerBinPath} list --label '{label}'";
 
-    var runner = client.RunCommand($"{ServerBinPath} '{label}'");
+    var runner = client.RunCommand(cmd);
 
     var commandResult = await Task.Factory.FromAsync(runner.BeginExecute(), runner.EndExecute).ConfigureAwait(false);
 
@@ -61,4 +50,38 @@ public class NasComSshClient
     return null;
   }
 
+  /// <exception cref="T:System.Net.Sockets.SocketException">Socket connection to the SSH server or proxy server could not be established, or an error occurred while resolving the hostname.</exception>
+  /// <exception cref="T:Renci.SshNet.Common.SshConnectionException">SSH session could not be established.</exception>
+  /// <exception cref="T:Renci.SshNet.Common.SshAuthenticationException">Authentication of SSH session failed.</exception>
+  public async Task<bool> Copy(CancellationToken token, string sourceName, string destinationDeviceLabel)
+  {
+    if (sourceName.Contains('\''))
+      throw new InvalidOperationException($"{nameof(sourceName)} cannot contain an apostrophe");
+    if (destinationDeviceLabel.Contains('\''))
+      throw new InvalidOperationException($"{nameof(destinationDeviceLabel)} cannot contain an apostrophe");
+
+    using var client = new SshClient(_sshCredentials);
+
+    await client.ConnectAsync(token);
+
+    var cmd =
+      $"sudo -E {ServerBinPath} copy --source-name '{sourceName}' --destination-device-label '{destinationDeviceLabel}'";
+
+    var runner = client.RunCommand(cmd);
+
+    // await using var sw = new StreamWriter(Console.OpenStandardOutput());
+    // sw.AutoFlush = true;
+
+    // runner.OutputStream..SetOut(sw);
+
+    await Task.Factory.FromAsync(runner.BeginExecute(), runner.EndExecute).ConfigureAwait(false);
+
+    if (runner.ExitStatus is 0)
+    {
+      return true;
+    }
+
+    Console.WriteLine($"Error, exit status {runner.ExitStatus}: {runner.Error}");
+    return false;
+  }
 }
