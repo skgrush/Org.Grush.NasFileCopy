@@ -7,23 +7,13 @@
 ## Installation
 
 1. SSH into TrueNAS as a sudo-able or in the WebUI use `System Settings > shell`
-2. To get the .NET installer, run
-   ```sh
-   mkdir /tmp/dotnet && cd /tmp/dotnet
-   wget https://dot.net/v1/dotnet-install.sh -O ./dotnet-install.sh
-   chmod +x ./dotnet-install.sh
-   ```
-3. Install the .NET 8+ runtime. You can change this to whatever you see fit based on the [dotnet-install reference](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script) but here's my recommendation:
-   ```sh
-   sudo mkdir -m 777 /opt/dotnet
-   ./dotnet-install.sh --channel LTS --runtime dotnet --install-dir /opt/dotnet
-   ```
-   You can also add `--dry-run` to dry run it.
-4. either in your personal shell rc profile or in `/etc/zsh/zshenv` add
-   ```sh
-   export DOTNET_ROOT=/opt/dotnet
-   ```
-5. TODO: Install application to /opt/NasFileCopy
+2. TODO: Install application to /opt/Org.Grush.NasFileCopy.ServerSide
+3. Create a TrueNAS group with `Allowed sudo commands with no password` set to `/opt/Org.Grush.NasFileCopy.ServerSide`
+4. Create or modify your TrueNAS user with
+   - the above group added to their group
+   - a home directory set to a real directory (I created a dataset just for user-homes)
+   - SSH password login enabled (TODO: support keys)
+   - shell set to `zsh`
 
 ## Running the application
 
@@ -42,4 +32,4 @@ Replace `$DATASET` with the FULL dataset path, e.g. `rootDataset/targetDataset`.
 sudo -E /opt/NasFileCopy copy --destination-device-label=$USBLABEL --source-name=$DATASET
 ```
 
-Currently we have to use `sudo -E` to maintain the `DOTNET_ROOT` env var.
+If the copy fails it will tell you the viable destination labels and source names, depending on what you got wrong.
