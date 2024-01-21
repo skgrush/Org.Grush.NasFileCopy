@@ -60,11 +60,12 @@ jobs:
           - folder: Org.Grush.NasFileCopy.ServerSide
             project: Org.Grush.NasFileCopy.ServerSide
             target: linux-x64
+            exeExt: .exe
           - folder: Org.Grush.NasFileCopy.ClientSide/Org.Grush.NasFileCopy.ClientSide.Cli
             project: Org.Grush.NasFileCopy.ClientSide.Cli
             target: win-x64
     env:
-      EXE_PATH: ${{ matrix.folder }}/bin/Release/net8.0/${{ matrix.target }}/publish/${{ matrix.project }}
+      EXE_PATH: ${{ matrix.folder }}/bin/Release/net8.0/${{ matrix.target }}/publish/${{ matrix.project }}${{ matrix.exeExt }}
       ZIP_PATH: ${{ matrix.folder }}/bin/Release/net8.0/${{ matrix.target }}/publish/${{ matrix.project }}_${{ matrix.target }}.zip
     steps:
       - uses: actions/checkout@v3
