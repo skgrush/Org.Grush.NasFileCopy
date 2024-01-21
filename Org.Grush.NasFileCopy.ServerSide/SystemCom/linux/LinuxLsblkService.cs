@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using JetBrains.Annotations;
+using Org.Grush.NasFileCopy.Structures;
 
 namespace Org.Grush.NasFileCopy.ServerSide.SystemCom.linux;
 
@@ -43,6 +44,7 @@ public class LinuxLsblkService : LsblkService
   private static LsblkOutput CombineOutputs(LsblkOutputBp block, LsblkOutputBpf fs)
   {
     return new(
+      RecordVersion: 1,
       BlockDevices:
       block.BlockDevices
         .Zip(fs.BlockDevices)
@@ -67,6 +69,7 @@ public class LinuxLsblkService : LsblkService
       throw new InvalidOperationException($"MajMin must be number:number, got {block.MajMin}");
 
     return new(
+      RecordVersion: 1,
       Name: block.Name,
       MajorDeviceNumber: majMinParts[0],
       MinorDeviceNumber: majMinParts[1],
