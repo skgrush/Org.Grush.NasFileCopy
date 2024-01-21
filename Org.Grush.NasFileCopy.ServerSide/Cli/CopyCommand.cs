@@ -119,7 +119,7 @@ public class CopyCommand
 
     var unmountSuccess = await _mountService.Unmount(destinationMountPoint);
 
-    return syncSuccess ? 255 : 0;
+    return syncSuccess ? 0 : 255;
   }
 
   private static string SanitizeName(string name)
