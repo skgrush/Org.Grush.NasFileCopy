@@ -1,6 +1,0 @@
-<component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Publish Org.Grush.NasFileCopy.ServerSide to osx-arm64" type="DotNetFolderPublish" factoryName="Publish to folder">
-    <riderPublish configuration="Release" platform="Any CPU" produce_single_file="true" runtime="osx-arm64" target_folder="$PROJECT_DIR$/Org.Grush.NasFileCopy.ServerSide/bin/Release/net8.0/osx-arm64/publish" target_framework="net8.0" uuid_high="-6089368977404575599" uuid_low="-6831638604098005119" />
-    <method v="2" />
-  </configuration>
-</component>

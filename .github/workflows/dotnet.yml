@@ -1,0 +1,86 @@
+# This workflow will build a .NET project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
+
+name: .NET
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+#  build:
+#    runs-on: ubuntu-latest
+#    steps:
+#      - uses: actions/checkout@v3
+#      - name: Setup .NET
+#        uses: actions/setup-dotnet@v3
+#        with:
+#          dotnet-version: 8.0.x
+#      - name: Restore dependencies
+#        run: dotnet restore
+#      - name: Build
+#        run: dotnet build --no-restore --configuration Release
+#      - name: Publish ServerSide linux-x86-64
+#        env:
+#          FOLDER: Org.Grush.NasFileCopy.ServerSide
+#          PROJECT: Org.Grush.NasFileCopy.ServerSide
+#          TARGET: linux-x64
+#        run: dotnet publish ${{ FOLDER }}/${{ PROJECT }}.csproj --no-restore -c Release -r ${{ TARGET }} --self-contained true -p:PublishTrimmed=true -p:PublishSingleFile=true
+#      - name: Publish ClientSide win-x86-64
+#        env:
+#          FOLDER: Org.Grush.NasFileCopy.ClientSide/Org.Grush.NasFileCopy.ClientSide.Cli
+#          PROJECT: Org.Grush.NasFileCopy.ClientSide.Cli
+#          TARGET: win-x64
+#        run: dotnet publish ${{ FOLDER }}/${{ PROJECT }}.csproj --no-restore -c Release -r ${{ TARGET }} --self-contained true -p:PublishTrimmed=true -p:PublishSingleFile=true
+
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - folder: Org.Grush.NasFileCopy.ServerSide
+            project: Org.Grush.NasFileCopy.ServerSide
+            target: linux-x64
+          - folder: Org.Grush.NasFileCopy.ClientSide/Org.Grush.NasFileCopy.ClientSide.Cli
+            project: Org.Grush.NasFileCopy.ClientSide.Cli
+            target: win-x64
+    env:
+      EXE_PATH: ${{ matrix.folder }}/bin/Release/net8.0/${{ matrix.target }}/publish/${{ matrix.project }}
+      ZIP_PATH: ${{ matrix.folder }}/bin/Release/net8.0/${{ matrix.target }}/publish/${{ matrix.project }}_${{ matrix.target }}.zip
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 8.0.x
+      - name: Restore dependencies
+        run: dotnet restore
+      - name: Publish ${{ matrix.target }}
+        run: dotnet publish ${{ matrix.folder }}/${{ matrix.folder }}.csproj --no-restore -c Release -r ${{ TARGET }} --self-contained true -p:PublishTrimmed=true -p:PublishSingleFile=true
+
+      - name: Create Zip File
+        uses: papeloto/action-zip@v1
+        with:
+          files: ${{ env.EXE_PATH }}
+          dest: ${{ env.ZIP_PATH }}
+
+      - name: Initialize Release
+        uses: actions/create-release@v1
+        id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: ${{ github.ref }}
+
+      - name: Create Release
+        uses: csexton/release-asset-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{ env.ZIP_PATH }}
+          release-url: ${{ steps.create_release.outputs.upload_url }}
+
+    # - name: Test
+    #   run: dotnet test --no-build --verbosity normal
