@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using Org.Grush.NasFileCopy.Structures;
 using Renci.SshNet;
@@ -67,12 +68,12 @@ public class NasComSshClient
     var cmd =
       $"sudo {ServerBinPath} copy --source-name '{sourceName}' --destination-device-label '{destinationDeviceLabel}'";
 
-    var runner = client.RunCommand(cmd);
+    var runner = client.CreateCommand(cmd);
 
     var asyncExe = runner.BeginExecute();
 
-    using var stdoutReader = new StreamReader(runner.OutputStream);
-    using var stderrReader = new StreamReader(runner.ExtendedOutputStream);
+    using var stdoutReader = new StreamReader(runner.OutputStream, Encoding.UTF8, true, 1024, true);
+    using var stderrReader = new StreamReader(runner.ExtendedOutputStream, Encoding.UTF8, true, 1024, true);
 
     var stderrTask = CheckOutputAndReportProgressAsync(runner, asyncExe, stderrReader, token);
     var stdoutTask = CheckOutputAndReportProgressAsync(runner, asyncExe, stdoutReader, token);
