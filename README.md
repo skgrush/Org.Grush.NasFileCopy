@@ -25,11 +25,22 @@
 
 ### Copying
 
+#### On server
+
 Replace `$USBLABEL` the user-facing label of the USB partition.
 Replace `$DATASET` with the FULL dataset path, e.g. `rootDataset/targetDataset`.
 
 ```sh
-sudo -E /opt/NasFileCopy copy --destination-device-label=$USBLABEL --source-name=$DATASET
+sudo /opt/Org.Grush.NasFileCopy.ServerSide copy --destination-device-label=$USBLABEL --source-name=$DATASET
 ```
 
 If the copy fails it will tell you the viable destination labels and source names, depending on what you got wrong.
+
+#### From a remote client
+
+```sh
+./Org.Grush.NasFileCopy.ClientSide.Cli[.exe]
+```
+
+TODO:
+Current implementation prompts you for hostname, credentials, and method (copy or list), then executes the operation on the remote.
