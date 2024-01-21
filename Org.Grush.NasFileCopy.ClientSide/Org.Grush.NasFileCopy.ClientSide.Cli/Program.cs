@@ -42,6 +42,7 @@ try
 {
   if (doList)
   {
+    Console.WriteLine("\nExecuting LIST operation:\n");
     var result = await ssh.ListDevices(token);
 
     Console.WriteLine(result?.Serialize());
@@ -53,6 +54,8 @@ try
 
     Console.WriteLine("Destination device label:");
     var deviceLabel = Console.ReadLine();
+
+    Console.WriteLine("\nExecuting COPY operation:\n");
     var result = await ssh.Copy(token, source, deviceLabel);
 
     Console.WriteLine(result ? "Success" : "Failure");
