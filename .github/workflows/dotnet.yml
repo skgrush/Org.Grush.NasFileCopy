@@ -48,6 +48,8 @@ jobs:
           tag_name: ${{ github.ref }}
           release_name: ${{ github.ref }}
           prerelease: ${{ contains(github.ref, '-rc.') }}
+    outputs:
+      release_upload_url: steps.create_release.outputs.upload_url
 
   publish:
     needs: [create-release]
@@ -86,7 +88,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           file: ${{ env.ZIP_PATH }}
-          release-url: ${{ steps.create_release.outputs.upload_url }}
+          release-url: ${{ needs.create-release.outputs.release_upload_url }}
 
     # - name: Test
     #   run: dotnet test --no-build --verbosity normal
