@@ -49,7 +49,7 @@ jobs:
           release_name: ${{ github.ref }}
           prerelease: ${{ contains(github.ref, '-rc.') }}
     outputs:
-      release_upload_url: steps.create_release.outputs.upload_url
+      release_upload_url: ${{ steps.create_release.outputs.upload_url }}
 
   publish:
     needs: [create-release]
