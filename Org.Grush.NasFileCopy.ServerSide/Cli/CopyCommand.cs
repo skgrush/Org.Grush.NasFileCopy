@@ -87,6 +87,14 @@ public class CopyCommand
     {
       Console.WriteLine($"Failed to find destination partition named {destinationLabel}");
       return 4;
+      Console.WriteLine($"Failed to find removable destination partition named {destinationLabel}");
+      var viableOptions = _lsblkService.Find(dev => dev is { Rm: true, Type: "part" }).ToList();
+
+      Console.WriteLine("Acceptable destination labels:");
+      foreach (var dev in viableOptions)
+      {
+        Console.WriteLine($"  '{dev.Label}' : size={dev.Size:N}");
+      }
     }
 
     // get a lock and make sure it's cleaned up afterwards
