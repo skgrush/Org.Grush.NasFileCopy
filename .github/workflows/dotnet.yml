@@ -57,7 +57,7 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
       - name: Publish ${{ matrix.target }}
-        run: dotnet publish ${{ matrix.folder }}/${{ matrix.folder }}.csproj --no-restore -c Release -r ${{ matrix.target }} --self-contained true -p:PublishTrimmed=true -p:PublishSingleFile=true
+        run: dotnet publish ${{ matrix.folder }}/${{ matrix.project }}.csproj --no-restore -c Release -r ${{ matrix.target }} --self-contained true -p:PublishTrimmed=true -p:PublishSingleFile=true
 
       - name: Create Zip File
         uses: papeloto/action-zip@v1
