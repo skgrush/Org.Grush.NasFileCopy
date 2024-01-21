@@ -65,23 +65,56 @@ public class NasComSshClient
     await client.ConnectAsync(token);
 
     var cmd =
-      $"sudo -E {ServerBinPath} copy --source-name '{sourceName}' --destination-device-label '{destinationDeviceLabel}'";
+      $"sudo {ServerBinPath} copy --source-name '{sourceName}' --destination-device-label '{destinationDeviceLabel}'";
 
     var runner = client.RunCommand(cmd);
 
-    // await using var sw = new StreamWriter(Console.OpenStandardOutput());
-    // sw.AutoFlush = true;
+    var asyncExe = runner.BeginExecute();
 
-    // runner.OutputStream..SetOut(sw);
+    using var stdoutReader = new StreamReader(runner.OutputStream);
+    using var stderrReader = new StreamReader(runner.ExtendedOutputStream);
 
-    await Task.Factory.FromAsync(runner.BeginExecute(), runner.EndExecute).ConfigureAwait(false);
+    var stderrTask = CheckOutputAndReportProgressAsync(runner, asyncExe, stderrReader, token);
+    var stdoutTask = CheckOutputAndReportProgressAsync(runner, asyncExe, stdoutReader, token);
+
+    await Task.WhenAll(stderrTask, stdoutTask);
+
+    runner.EndExecute(asyncExe);
 
     if (runner.ExitStatus is 0)
     {
+      Console.WriteLine();
       return true;
     }
 
     Console.WriteLine($"Error, exit status {runner.ExitStatus}: {runner.Error}");
     return false;
+  }
+
+  private static async Task CheckOutputAndReportProgressAsync(
+    SshCommand sshCommand,
+    IAsyncResult asyncResult,
+    StreamReader streamReader,
+    CancellationToken cancellationToken)
+  {
+    while (!asyncResult.IsCompleted || !streamReader.EndOfStream)
+    {
+      if (cancellationToken.IsCancellationRequested)
+      {
+        sshCommand.CancelAsync();
+      }
+
+      cancellationToken.ThrowIfCancellationRequested();
+
+      var remaining = await streamReader.ReadToEndAsync(cancellationToken);
+
+      if (!string.IsNullOrEmpty(remaining))
+      {
+        Console.Write(remaining);
+      }
+
+      // wait 10 ms
+      await Task.Delay(10, cancellationToken);
+    }
   }
 }
