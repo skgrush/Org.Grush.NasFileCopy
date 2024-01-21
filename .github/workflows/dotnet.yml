@@ -36,8 +36,21 @@ jobs:
 #          PROJECT: Org.Grush.NasFileCopy.ClientSide.Cli
 #          TARGET: win-x64
 #        run: dotnet publish ${{ FOLDER }}/${{ PROJECT }}.csproj --no-restore -c Release -r ${{ TARGET }} --self-contained true -p:PublishTrimmed=true -p:PublishSingleFile=true
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Initialize Release
+        uses: actions/create-release@v1
+        id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: ${{ github.ref }}
+          prerelease: ${{ contains(github.ref, '-rc.') }}
 
   publish:
+    needs: [create-release]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -68,27 +81,12 @@ jobs:
           files: ${{ env.EXE_PATH }}
           dest: ${{ env.ZIP_PATH }}
 
-      - name: Release
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Push to Release
+        uses: csexton/release-asset-action@v2
         with:
-          files: ${{ env.ZIP_PATH }}
-#      - name: Initialize Release
-#        uses: actions/create-release@v1
-#        id: create_release
-#        env:
-#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#        with:
-#          tag_name: ${{ github.ref }}
-#          release_name: ${{ github.ref }}
-#          prerelease: ${{ contains(github.ref, '-rc.') }}
-#
-#      - name: Create Release
-#        uses: csexton/release-asset-action@v2
-#        with:
-#          github-token: ${{ secrets.GITHUB_TOKEN }}
-#          file: ${{ env.ZIP_PATH }}
-#          release-url: ${{ steps.create_release.outputs.upload_url }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{ env.ZIP_PATH }}
+          release-url: ${{ steps.create_release.outputs.upload_url }}
 
     # - name: Test
     #   run: dotnet test --no-build --verbosity normal
