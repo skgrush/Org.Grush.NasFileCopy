@@ -8,6 +8,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
 #  build:
 #    runs-on: ubuntu-latest
@@ -73,6 +76,7 @@ jobs:
         with:
           tag_name: ${{ github.ref }}
           release_name: ${{ github.ref }}
+          prerelease: ${{ contains(github.ref, '-rc.') }}
 
       - name: Create Release
         uses: csexton/release-asset-action@v2
