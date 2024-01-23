@@ -13,7 +13,7 @@ var lockFileService = new LockFileService();
 
 var rootCommand = new RootCommand("Server-side NasFileCopy CLI");
 
-rootCommand.AddCommand(new ListCommand(lsblkService).Command);
+rootCommand.AddCommand(new ListCommand(lsblkService, mountService).Command);
 rootCommand.AddCommand(new CopyCommand(mountService, lsblkService, rsyncService, lockFileService).Command);
 
 return await rootCommand.InvokeAsync(args);
