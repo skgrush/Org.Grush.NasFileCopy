@@ -82,12 +82,12 @@ public class CopyCommand
 
     await _lsblkService.ReadLsblk();
 
-    var destinationDevice = _lsblkService.Find(dev => dev.Label == destinationLabel && dev is { Rm: true, Type: "part" }).FirstOrDefault();
+    var destinationDevice = _lsblkService.Find(dev => dev.Label == destinationLabel && dev is { Type: "part" }).FirstOrDefault();
 
     if (destinationDevice is null)
     {
-      Console.WriteLine($"Failed to find removable destination partition named {destinationLabel}");
-      var viableOptions = _lsblkService.Find(dev => dev is { Rm: true, Type: "part" }).ToList();
+      Console.WriteLine($"Failed to find destination partition named {destinationLabel}");
+      var viableOptions = _lsblkService.Find(dev => dev is { Type: "part" }).ToList();
 
       Console.WriteLine("Acceptable destination labels:");
       foreach (var dev in viableOptions)
