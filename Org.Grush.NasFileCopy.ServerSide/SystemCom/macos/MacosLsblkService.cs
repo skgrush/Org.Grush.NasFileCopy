@@ -14,6 +14,7 @@ public class MacosLsblkService : LsblkService
 {
   public override async Task<bool> ReadLsblk()
   {
+    await Task.CompletedTask;
     throw new NotImplementedException();
   }
 

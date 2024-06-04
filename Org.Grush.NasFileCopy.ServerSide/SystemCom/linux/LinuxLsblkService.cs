@@ -95,7 +95,7 @@ public record LsblkOutputBp(
 )
 {
   public static LsblkOutputBp Deserialize(string input)
-    => JsonSerializer.Deserialize(input, LinuxLsblkContext.Default.LsblkOutputBp);
+    => JsonSerializer.Deserialize(input, LinuxLsblkContext.Default.LsblkOutputBp)!;
 }
 
 [UsedImplicitly]
@@ -121,7 +121,7 @@ public record LsblkOutputBpf(
 )
 {
   public static LsblkOutputBpf Deserialize(string input)
-    => JsonSerializer.Deserialize(input, LinuxLsblkContext.Default.LsblkOutputBpf);
+    => JsonSerializer.Deserialize(input, LinuxLsblkContext.Default.LsblkOutputBpf)!;
 }
 
 [UsedImplicitly]

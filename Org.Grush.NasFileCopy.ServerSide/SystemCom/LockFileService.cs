@@ -43,7 +43,10 @@ public class LockFileService
     {
       Mode = FileMode.CreateNew,
       Access = FileAccess.Write,
+      // TODO
+#pragma warning disable CA1416
       UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.GroupWrite
+#pragma warning restore CA1416
     });
 
     file.WriteLine(contents);
@@ -165,7 +168,7 @@ public record LockFileContents(
     => JsonSerializer.Serialize(this, LockFileContentsContext.Default.LockFileContents);
 
   public static LockFileContents Deserialize(string str)
-    => JsonSerializer.Deserialize(str, LockFileContentsContext.Default.LockFileContents);
+    => JsonSerializer.Deserialize(str, LockFileContentsContext.Default.LockFileContents)!;
 }
 
 [JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
