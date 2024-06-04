@@ -24,7 +24,28 @@ public class NasComSshClient
   /// <exception cref="T:System.Net.Sockets.SocketException">Socket connection to the SSH server or proxy server could not be established, or an error occurred while resolving the hostname.</exception>
   /// <exception cref="T:Renci.SshNet.Common.SshConnectionException">SSH session could not be established.</exception>
   /// <exception cref="T:Renci.SshNet.Common.SshAuthenticationException">Authentication of SSH session failed.</exception>
-  public async Task<LsblkOutput?> ListDevices(CancellationToken token, string? label = null)
+  public async Task<LsblkDevice?> ListDevice(CancellationToken token, string label)
+  {
+    var result = await ListDevicesInternal(token, label);
+
+    return result is not null
+      ? LsblkDevice.Deserialize(result)
+      : null;
+  }
+
+  /// <exception cref="T:System.Net.Sockets.SocketException">Socket connection to the SSH server or proxy server could not be established, or an error occurred while resolving the hostname.</exception>
+  /// <exception cref="T:Renci.SshNet.Common.SshConnectionException">SSH session could not be established.</exception>
+  /// <exception cref="T:Renci.SshNet.Common.SshAuthenticationException">Authentication of SSH session failed.</exception>
+  public async Task<ListCommandAcceptableValues?> ListDevices(CancellationToken token)
+  {
+    var result = await ListDevicesInternal(token);
+
+    return result is not null
+      ? ListCommandAcceptableValues.Deserialize(result)
+      : null;
+  }
+
+  private async Task<string?> ListDevicesInternal(CancellationToken token, string? label = null)
   {
     if (label is not null && label.Contains('\''))
       throw new InvalidOperationException($"{nameof(label)} cannot contain an apostrophe");
@@ -44,7 +65,8 @@ public class NasComSshClient
 
     if (runner.ExitStatus is 0)
     {
-      return LsblkOutput.Deserialize(commandResult);
+      if (label is null)
+        return commandResult;
     }
 
     Console.WriteLine($"Error, exit status {runner.ExitStatus}: {runner.Error}");

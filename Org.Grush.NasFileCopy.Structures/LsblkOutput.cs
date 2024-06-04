@@ -50,6 +50,9 @@ public record LsblkDevice(
 {
   public string Serialize()
     => JsonSerializer.Serialize(this, LsblkDeviceContext.Default.LsblkDevice);
+
+  public static LsblkDevice? Deserialize(string str)
+    => JsonSerializer.Deserialize(str, LsblkDeviceContext.Default.LsblkDevice);
 }
 
 [JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]

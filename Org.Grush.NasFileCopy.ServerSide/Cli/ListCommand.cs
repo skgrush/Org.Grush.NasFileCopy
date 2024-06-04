@@ -1,5 +1,6 @@
 using System.CommandLine;
 using Org.Grush.NasFileCopy.ServerSide.SystemCom;
+using Org.Grush.NasFileCopy.Structures;
 
 namespace Org.Grush.NasFileCopy.ServerSide.Cli;
 
@@ -47,12 +48,12 @@ public class ListCommand
       .Where(mnt => mnt.Path.StartsWith("/mnt/"))
       .Select(mnt => mnt.Name);
 
-    var acceptableLabels = _lsblkService.Output!.BlockDevices.Where(dev => dev.Label is not null).Select(dev => dev.Label);
-    Console.WriteLine("Acceptable destination labels:");
-    Console.WriteLine(string.Join('\n', acceptableLabels));
+    var acceptableDestLabels = _lsblkService.Output!.BlockDevices.Where(dev => dev.Label is not null).Select(dev => dev.Label);
 
-    Console.WriteLine("Acceptable sources:");
-    Console.WriteLine(string.Join('\n', viableSources));
+    Console.WriteLine(new ListCommandAcceptableValues(
+      AcceptableDestinationLabels: acceptableDestLabels.ToList()!,
+      AcceptableSourceNames: viableSources.ToList()
+    ).Serialize());
 
     return 0;
   }
