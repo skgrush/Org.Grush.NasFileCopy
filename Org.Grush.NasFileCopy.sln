@@ -10,6 +10,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Grush.NasFileCopy.Struc
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Grush.NasFileCopy.ClientSide.Cli", "Org.Grush.NasFileCopy.ClientSide\Org.Grush.NasFileCopy.ClientSide.Cli\Org.Grush.NasFileCopy.ClientSide.Cli.csproj", "{FDB3220E-2F02-4D64-B429-8E3A92BE9CC0}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Grush.NasFileCopy.ClientSide.Maui", "Org.Grush.NasFileCopy.ClientSide\Org.Grush.NasFileCopy.ClientSide.Maui\Org.Grush.NasFileCopy.ClientSide.Maui.csproj", "{3E5789F4-53A3-48C0-BE0E-9D35641299BD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -32,9 +34,14 @@ Global
 		{FDB3220E-2F02-4D64-B429-8E3A92BE9CC0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FDB3220E-2F02-4D64-B429-8E3A92BE9CC0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FDB3220E-2F02-4D64-B429-8E3A92BE9CC0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3E5789F4-53A3-48C0-BE0E-9D35641299BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3E5789F4-53A3-48C0-BE0E-9D35641299BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3E5789F4-53A3-48C0-BE0E-9D35641299BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3E5789F4-53A3-48C0-BE0E-9D35641299BD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{82E37F8A-9522-420B-B955-DE053AFC0864} = {0AB00784-42AB-458C-9533-EF1852621A4F}
 		{FDB3220E-2F02-4D64-B429-8E3A92BE9CC0} = {0AB00784-42AB-458C-9533-EF1852621A4F}
+		{3E5789F4-53A3-48C0-BE0E-9D35641299BD} = {0AB00784-42AB-458C-9533-EF1852621A4F}
 	EndGlobalSection
 EndGlobal

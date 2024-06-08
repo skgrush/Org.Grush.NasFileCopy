@@ -1,0 +1,11 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Org.Grush.NasFileCopy.ClientSide.Maui" type="XamarinMacProject" factoryName="Xamarin.Mac">
+    <option name="PROJECT_PATH" value="$PROJECT_DIR$/Org.Grush.NasFileCopy.ClientSide/Org.Grush.NasFileCopy.ClientSide.Maui/Org.Grush.NasFileCopy.ClientSide.Maui.csproj" />
+    <option name="PROGRAM_PARAMETERS" value="" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/Org.Grush.NasFileCopy.ClientSide/Org.Grush.NasFileCopy.ClientSide.Maui/bin/Release/net8.0-maccatalyst" />
+    <option name="PASS_PARENT_ENVS_MAC" value="1" />
+    <method v="2">
+      <option name="Build" />
+    </method>
+  </configuration>
+</component>
