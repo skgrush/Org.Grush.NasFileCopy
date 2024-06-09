@@ -63,4 +63,8 @@
         <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.0"/>
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\Org.Grush.NasFileCopy.ClientSide.Shared\Org.Grush.NasFileCopy.ClientSide.Shared.csproj" />
+    </ItemGroup>
+
 </Project>
