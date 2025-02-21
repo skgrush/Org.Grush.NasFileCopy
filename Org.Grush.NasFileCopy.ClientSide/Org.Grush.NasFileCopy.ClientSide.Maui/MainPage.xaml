@@ -57,6 +57,7 @@
                 Text="Hostname"
                 Grid.Column="0"
                 Grid.Row="1"
+                VerticalTextAlignment="Center"
               />
               <Entry
                 x:Name="ConnectionHostname"
@@ -70,6 +71,7 @@
                 Text="Username"
                 Grid.Column="0"
                 Grid.Row="2"
+                VerticalTextAlignment="Center"
               />
               <Entry
                 x:Name="ConnectionUsername"
@@ -83,6 +85,7 @@
                 Text="Password"
                 Grid.Column="0"
                 Grid.Row="3"
+                VerticalTextAlignment="Center"
               />
               <Entry
                 x:Name="ConnectionPassword"
@@ -105,6 +108,7 @@
 
               <Label
                 x:Name="ConnectionStatusLabel"
+                Margin="0, 0, 2, 0"
               />
               <Label
                 x:Name="ConnectionMessageLabel"
@@ -118,9 +122,17 @@
               SemanticProperties.HeadingLevel="Level2"
             />
             <HorizontalStackLayout>
-              <Label Text="Source" /> <Picker x:Name="CopySourceMountPointPicker" />
+              <Label
+                Text="Source"
+                VerticalTextAlignment="Center"
+                />
+              <Picker x:Name="CopySourceMountPointPicker" />
 
-              <Label Text="Destination" /> <Picker x:Name="CopyDestinationLabelPicker" />
+              <Label
+                Text="Destination"
+                VerticalTextAlignment="Center"
+              />
+              <Picker x:Name="CopyDestinationLabelPicker" />
             </HorizontalStackLayout>
             <Button
               x:Name="CopyBtn"
@@ -129,6 +141,10 @@
               Clicked="OnCopyClicked"
               HorizontalOptions="Fill"
             />
+
+            <ScrollView>
+              <Label x:Name="CopyOutput" />
+            </ScrollView>
 
         </VerticalStackLayout>
     </ScrollView>

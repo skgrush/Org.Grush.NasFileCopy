@@ -76,7 +76,12 @@ public class NasComSshClient
   /// <exception cref="T:System.Net.Sockets.SocketException">Socket connection to the SSH server or proxy server could not be established, or an error occurred while resolving the hostname.</exception>
   /// <exception cref="T:Renci.SshNet.Common.SshConnectionException">SSH session could not be established.</exception>
   /// <exception cref="T:Renci.SshNet.Common.SshAuthenticationException">Authentication of SSH session failed.</exception>
-  public async Task<bool> Copy(CancellationToken token, string sourceName, string destinationDeviceLabel)
+  public async Task<bool> Copy(
+    CancellationToken token,
+    string sourceName,
+    string destinationDeviceLabel,
+    BaseStreamOutputHandler outputHandler
+  )
   {
     if (sourceName.Contains('\''))
       throw new InvalidOperationException($"{nameof(sourceName)} cannot contain an apostrophe");
@@ -97,55 +102,49 @@ public class NasComSshClient
     using var stdoutReader = new StreamReader(runner.OutputStream, Encoding.UTF8, true, 1024, true);
     using var stderrReader = new StreamReader(runner.ExtendedOutputStream, Encoding.UTF8, true, 1024, true);
 
-    var stderrTask = CheckOutputAndReportProgressAsync(runner, asyncExe, stderrReader, token);
-    var stdoutTask = CheckOutputAndReportProgressAsync(runner, asyncExe, stdoutReader, token);
+    var stderrTask = outputHandler.CheckOutputAndReportProgressAsync(runner, asyncExe, stderrReader, StreamType.Err, token);
+    var stdoutTask = outputHandler.CheckOutputAndReportProgressAsync(runner, asyncExe, stdoutReader, StreamType.Out, token);
 
     await Task.WhenAll(stderrTask, stdoutTask);
 
     runner.EndExecute(asyncExe);
 
-    if (runner.ExitStatus is 0)
-    {
-      Console.WriteLine();
-      return true;
-    }
-
-    var exitMessage = ExitCodeToMessage((CopyCommandExitCodes)runner.ExitStatus);
-    Console.WriteLine($"Error, exit status {runner.ExitStatus} ({exitMessage}): {runner.Error}");
-    return false;
+    var exitCode = (CopyCommandExitCodes)runner.ExitStatus;
+    await outputHandler.HandleEnd(exitCode, runner.Error, token);
+    return runner.ExitStatus is 0;
   }
 
-  private static async Task CheckOutputAndReportProgressAsync(
-    SshCommand sshCommand,
-    IAsyncResult asyncResult,
-    StreamReader streamReader,
-    CancellationToken cancellationToken)
-  {
-    while (!asyncResult.IsCompleted || !streamReader.EndOfStream)
-    {
-      if (cancellationToken.IsCancellationRequested)
-      {
-        sshCommand.CancelAsync();
-      }
+  // private static async Task CheckOutputAndReportProgressAsync(
+  //   SshCommand sshCommand,
+  //   IAsyncResult asyncResult,
+  //   StreamReader streamReader,
+  //   CancellationToken cancellationToken)
+  // {
+  //   while (!asyncResult.IsCompleted || !streamReader.EndOfStream)
+  //   {
+  //     if (cancellationToken.IsCancellationRequested)
+  //     {
+  //       sshCommand.CancelAsync();
+  //     }
+  //
+  //     cancellationToken.ThrowIfCancellationRequested();
+  //
+  //     var remaining = await streamReader.ReadToEndAsync(cancellationToken);
+  //
+  //     if (!string.IsNullOrEmpty(remaining))
+  //     {
+  //       Console.Write(remaining);
+  //     }
+  //
+  //     // wait 10 ms
+  //     await Task.Delay(10, cancellationToken);
+  //   }
+  // }
 
-      cancellationToken.ThrowIfCancellationRequested();
-
-      var remaining = await streamReader.ReadToEndAsync(cancellationToken);
-
-      if (!string.IsNullOrEmpty(remaining))
-      {
-        Console.Write(remaining);
-      }
-
-      // wait 10 ms
-      await Task.Delay(10, cancellationToken);
-    }
-  }
-
-  private string ExitCodeToMessage(CopyCommandExitCodes exitCode)
-  {
-    return !Enum.IsDefined(exitCode)
-      ? "UNDEFINED" :
-      exitCode.ToString();
-  }
+  // private string ExitCodeToMessage(CopyCommandExitCodes exitCode)
+  // {
+  //   return !Enum.IsDefined(exitCode)
+  //     ? "UNDEFINED" :
+  //     exitCode.ToString();
+  // }
 }

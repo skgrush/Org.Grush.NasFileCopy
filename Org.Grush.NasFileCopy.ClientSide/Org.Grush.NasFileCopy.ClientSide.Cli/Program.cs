@@ -1,11 +1,15 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
 using System.Net.Sockets;
+using System.Reflection;
 using Org.Grush.NasFileCopy.ClientSide.Cli;
 using Org.Grush.NasFileCopy.ClientSide.Shared;
 using Renci.SshNet;
 using Renci.SshNet.Common;
 
+var version = Assembly.GetEntryAssembly()!.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+
+Console.WriteLine($"Version: {version}\n");
 
 Console.WriteLine("Hostname:");
 var hostname = Console.ReadLine();
@@ -56,7 +60,7 @@ try
     var deviceLabel = Console.ReadLine();
 
     Console.WriteLine("\nExecuting COPY operation:\n");
-    var result = await ssh.Copy(token, source, deviceLabel);
+    var result = await ssh.Copy(token, source, deviceLabel, new ConsoleStreamOutputHandler());
 
     Console.WriteLine(result ? "Success" : "Failure");
   }

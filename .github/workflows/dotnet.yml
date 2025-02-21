@@ -64,6 +64,11 @@ jobs:
             project: Org.Grush.NasFileCopy.ClientSide.Cli
             target: win-x64
             exeExt: .exe
+          - folder: Org.Grush.NasFileCopy.ClientSide/Org.Grush.NasFileCopy.ClientSide.Maui
+            project: Org.Grush.NasFileCopy.ClientSide.Maui
+            target: win-x64
+            exeExt: .exe
+
     env:
       EXE_PATH: ${{ matrix.folder }}/bin/Release/net8.0/${{ matrix.target }}/publish/${{ matrix.project }}${{ matrix.exeExt }}
       ZIP_PATH: ${{ matrix.folder }}/bin/Release/net8.0/${{ matrix.target }}/publish/${{ matrix.project }}_${{ matrix.target }}.zip
@@ -76,7 +81,7 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
       - name: Publish ${{ matrix.target }}
-        run: dotnet publish ${{ matrix.folder }}/${{ matrix.project }}.csproj --no-restore -c Release -r ${{ matrix.target }} --self-contained true -p:PublishTrimmed=true -p:PublishSingleFile=true
+        run: dotnet publish ${{ matrix.folder }}/${{ matrix.project }}.csproj --no-restore -c Release -r ${{ matrix.target }} --self-contained true -p:PublishTrimmed=true -p:PublishSingleFile=true -p:ENV_VERSION=${{ github.ref }}
 
       - name: Create Zip File
         uses: papeloto/action-zip@v1

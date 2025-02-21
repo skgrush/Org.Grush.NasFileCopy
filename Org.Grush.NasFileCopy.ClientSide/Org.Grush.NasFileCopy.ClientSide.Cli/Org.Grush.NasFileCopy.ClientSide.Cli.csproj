@@ -6,6 +6,9 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <RuntimeIdentifiers>win-x64;osx-arm64</RuntimeIdentifiers>
+      <Version Condition="'$(ENV_VERSION)' == ''">0.0.1-local</Version>
+      <Version Condition="'$(ENV_VERSION)' != ''">$(ENV_VERSION)</Version>
+<!--      <AssemblyVersion>0.0.0.0</AssemblyVersion>-->
     </PropertyGroup>
 
     <ItemGroup>

@@ -4,6 +4,19 @@
 
 **WARNING: This is not and should not be taken as a production- or safe-tool. This is a toy utility project.**
 
+## TODO: Installing from server
+```sh
+mkdir /opt
+cd /opt
+
+curl -L https://github.com/skgrush/Org.Grush.NasFileCopy/releases/download/v0.0.1-rc.10/Org.Grush.NasFileCopy.ServerSide_linux-x64.zip -o /tmp/tmp-NasFileCopy.zip \
+  && sudo unzip /tmp/tmp-NasFileCopy.zip -d /var \
+  && sudo chmod o+x /var/Org.Grush.NasFileCopy.ServerSide
+rm /tmp/tmp-NasFileCopy.zip
+
+chmod o+x Org.Grush.NasFileCopy.ServerSide
+```
+
 ## Installation
 
 1. SSH into TrueNAS as a sudo-able or in the WebUI use `System Settings > shell`

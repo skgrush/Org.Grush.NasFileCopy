@@ -1,4 +1,5 @@
-﻿using Org.Grush.NasFileCopy.ClientSide.Shared;
+﻿using System.Diagnostics;
+using Org.Grush.NasFileCopy.ClientSide.Shared;
 using Org.Grush.NasFileCopy.Structures;
 using Renci.SshNet;
 
@@ -19,6 +20,9 @@ public partial class MainPage : ContentPage
   private ConnectionInfo? ConnectionInfo { get; set; }
   private ConnectState ConnectState;
   private ListCommandAcceptableValues? ListResult { get; set; }
+
+  private IReadOnlyList<string> MountPoints => ListResult?.AcceptableSourceNames ?? [];
+  private IReadOnlyList<string> Destinations => ListResult?.AcceptableDestinationLabels ?? [];
 
   public MainPage()
   {
@@ -84,10 +88,11 @@ public partial class MainPage : ContentPage
 
       var listResult = await ssh.ListDevices(token);
 
-      await Dispatcher.DispatchAsync(() =>
-      {
-        UpdateConnectionState(ConnectState.Success, listResult: listResult);
-      });
+      if (listResult is not null)
+        await Dispatcher.DispatchAsync(() => UpdateConnectionState(ConnectState.Success, listResult: listResult));
+      else
+        await Dispatcher.DispatchAsync(() =>
+          UpdateConnectionState(ConnectState.Error, message: "Connected but failed to receive the list"));
     }
     catch (Exception e)
     {
@@ -123,13 +128,16 @@ public partial class MainPage : ContentPage
     {
       var ssh = new NasComSshClient(ConnectionInfo, "/opt/");
 
-      var listResult = await ssh.Copy(token, sourceMountPoint, destinationLabel);
+      var handler = new UiStreamOutputHandler(this);
+      var listResult = await ssh.Copy(token, sourceMountPoint, destinationLabel, handler);
 
       // TODO: success
     }
     catch (Exception e)
     {
-      // TODO: error
+      await Dispatcher.DispatchAsync(() =>
+        AppendCopyOutput($"\n\nLocal {e.GetType()}: {e.Message}")
+      );
     }
   }
 
@@ -152,13 +160,20 @@ public partial class MainPage : ContentPage
     ConnectionMessageLabel.Text = message ?? "";
 
     ListResult = listResult;
+  }
 
-    CopySourceMountPointPicker.ItemsSource =
-      listResult?.AcceptableSourceNames
-        .ToList() ?? [];
-    CopyDestinationLabelPicker.ItemsSource =
-      listResult?.AcceptableDestinationLabels
-        .ToList() ?? [];
+  private void AppendCopyOutput(string newOutput)
+  {
+    const int maxOutputLength = 5000;
+
+    if (CopyOutput.Text.Length + newOutput.Length > maxOutputLength)
+    {
+      CopyOutput.Text = CopyOutput.Text[(maxOutputLength - newOutput.Length)..] + newOutput;
+    }
+    else
+    {
+      CopyOutput.Text += newOutput;
+    }
   }
 
   // private void OnCounterClicked(object sender, EventArgs e)
@@ -172,4 +187,30 @@ public partial class MainPage : ContentPage
   //
   //   SemanticScreenReader.Announce(CounterBtn.Text);
   // }
+
+  class UiStreamOutputHandler(MainPage ui) : BaseStreamOutputHandler
+  {
+    private readonly MainPage _ui = ui;
+
+    protected override async Task WriteFromStream(string text, StreamType streamType, CancellationToken token)
+    {
+      await _ui.Dispatcher.DispatchAsync(() => _ui.AppendCopyOutput(text));
+    }
+
+    public override async Task HandleEnd(CopyCommandExitCodes exitCode, string runnerError, CancellationToken token)
+    {
+      string messageToAppend;
+      if (exitCode is CopyCommandExitCodes.OkOrHelp)
+      {
+        messageToAppend = "\n\n\nSuccess!";
+      }
+      else
+      {
+        var exitMessage = ExitCodeToMessage(exitCode);
+        messageToAppend = $"\n\n\nError: exit status {(int)exitCode} ({exitMessage})\n{runnerError}";
+      }
+
+      await _ui.Dispatcher.DispatchAsync(() => _ui.AppendCopyOutput(messageToAppend));
+    }
+  }
 }
