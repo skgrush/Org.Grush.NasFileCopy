@@ -12,6 +12,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Grush.NasFileCopy.Clien
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Grush.NasFileCopy.ClientSide.Maui", "Org.Grush.NasFileCopy.ClientSide\Org.Grush.NasFileCopy.ClientSide.Maui\Org.Grush.NasFileCopy.ClientSide.Maui.csproj", "{3E5789F4-53A3-48C0-BE0E-9D35641299BD}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Org.Grush.NasFileCopy.Remote", "Org.Grush.NasFileCopy.Remote", "{BAC11BC3-FCDD-43A7-AB1D-68E1D113D433}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Grush.NasFileCopy.Remote.Share", "Org.Grush.NasFileCopy.Remote\Org.Grush.NasFileCopy.Remote.Share\Org.Grush.NasFileCopy.Remote.Share.csproj", "{EF3F674B-C1CC-4820-8F3C-06CF9BD6943C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Grush.NasFileCopy.Remote.Cli", "Org.Grush.NasFileCopy.Remote\Org.Grush.NasFileCopy.Remote.Cli\Org.Grush.NasFileCopy.Remote.Cli.csproj", "{99CA8735-220E-4D93-BD2B-CF79F910438E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -38,10 +44,20 @@ Global
 		{3E5789F4-53A3-48C0-BE0E-9D35641299BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3E5789F4-53A3-48C0-BE0E-9D35641299BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3E5789F4-53A3-48C0-BE0E-9D35641299BD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EF3F674B-C1CC-4820-8F3C-06CF9BD6943C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EF3F674B-C1CC-4820-8F3C-06CF9BD6943C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EF3F674B-C1CC-4820-8F3C-06CF9BD6943C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EF3F674B-C1CC-4820-8F3C-06CF9BD6943C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{99CA8735-220E-4D93-BD2B-CF79F910438E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{99CA8735-220E-4D93-BD2B-CF79F910438E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{99CA8735-220E-4D93-BD2B-CF79F910438E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{99CA8735-220E-4D93-BD2B-CF79F910438E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{82E37F8A-9522-420B-B955-DE053AFC0864} = {0AB00784-42AB-458C-9533-EF1852621A4F}
 		{FDB3220E-2F02-4D64-B429-8E3A92BE9CC0} = {0AB00784-42AB-458C-9533-EF1852621A4F}
 		{3E5789F4-53A3-48C0-BE0E-9D35641299BD} = {0AB00784-42AB-458C-9533-EF1852621A4F}
+		{EF3F674B-C1CC-4820-8F3C-06CF9BD6943C} = {BAC11BC3-FCDD-43A7-AB1D-68E1D113D433}
+		{99CA8735-220E-4D93-BD2B-CF79F910438E} = {BAC11BC3-FCDD-43A7-AB1D-68E1D113D433}
 	EndGlobalSection
 EndGlobal
