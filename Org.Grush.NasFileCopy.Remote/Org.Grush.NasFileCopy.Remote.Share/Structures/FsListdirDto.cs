@@ -5,7 +5,7 @@ public record FsListdirDto(
   string Path,
   string Realpath,
   string Type,
-  int Size,
+  long Size,
   UnixFileMode Mode,
   bool Acl,
   int Uid,

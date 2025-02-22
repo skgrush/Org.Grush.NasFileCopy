@@ -1,7 +1,7 @@
 namespace Org.Grush.NasFileCopy.Remote.Share.Structures;
 
 public record FsStatDto(
-  int Size,
+  long Size,
   UnixFileMode Mode,
   int Uid,
   int Gid,

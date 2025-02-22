@@ -3,7 +3,7 @@ namespace Org.Grush.NasFileCopy.Remote.Share.Structures;
 
 public record DeviceInfoDto(
   string Name,
-  int Mediasize,
+  long Mediasize,
   int Sectorsize,
   int Stripesize,
   object Rotationrate,
@@ -11,10 +11,10 @@ public record DeviceInfoDto(
   string Lunid,
   string Descr,
   string Subsystem,
-  int Number,
+  long Number,
   string Model,
   string Type,
-  int Size,
+  long Size,
   int Blocks,
   string Bus
 );

@@ -38,8 +38,8 @@ public record PoolDatasetFilesystemDto(
   // ValueDto<string> Origin,
   ValueDto<bool> Readonly,
   ValueDto<string> Encryption_algorithm,
-  ValueDto<int> Used,
-  ValueDto<int> Available,
+  ValueDto<long> Used,
+  ValueDto<long> Available,
   bool Locked
 );
 
