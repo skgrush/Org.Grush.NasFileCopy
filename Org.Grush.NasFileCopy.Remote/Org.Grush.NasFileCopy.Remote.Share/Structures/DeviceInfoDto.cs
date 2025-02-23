@@ -5,7 +5,7 @@ public record DeviceInfoDto(
   string Name,
   long Mediasize,
   int Sectorsize,
-  int Stripesize,
+  int? Stripesize,
   object Rotationrate,
   string Ident,
   string Lunid,
@@ -15,6 +15,6 @@ public record DeviceInfoDto(
   string Model,
   string Type,
   long Size,
-  int Blocks,
+  long Blocks,
   string Bus
 );
