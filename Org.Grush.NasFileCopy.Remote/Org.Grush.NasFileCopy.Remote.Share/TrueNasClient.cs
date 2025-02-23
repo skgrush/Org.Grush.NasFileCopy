@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Org.Grush.NasFileCopy.Remote.Share.Structures;
+using Org.Grush.NasFileCopy.Remote.Share.Structures.Enums;
 
 namespace Org.Grush.NasFileCopy.Remote.Share;
 
@@ -95,11 +96,13 @@ public sealed class TrueNasClient(
 
     await using var content = await response.Content.ReadAsStreamAsync(cancellationToken);
 
-    return await JsonSerializer.DeserializeAsync<T>(content, options: new()
-    {
-      PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    }, cancellationToken);
+    return await JsonSerializer.DeserializeAsync<T>(content, options: StandardOptions, cancellationToken);
   }
+
+  private static readonly JsonSerializerOptions StandardOptions = new()
+  {
+    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+  };
 
   ValueTask IAsyncDisposable.DisposeAsync()
   {

@@ -10,4 +10,8 @@
       <Folder Include="Exceptions\" />
     </ItemGroup>
 
+    <ItemGroup>
+      <PackageReference Include="SSH.NET" Version="2023.0.1" />
+    </ItemGroup>
+
 </Project>
