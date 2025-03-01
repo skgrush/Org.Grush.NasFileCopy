@@ -146,9 +146,10 @@ public sealed class TrueNasSshClient(
 
   }
 
-  public SshCommand Rsync(
+  public RsyncReader Rsync(
     string copyFrom,
-    string destination
+    string destination,
+    CancellationToken cancellationToken
   )
   {
     if (copyFrom.Contains('\''))
@@ -156,8 +157,11 @@ public sealed class TrueNasSshClient(
     if (_dangerousShellQuoteChars.IsMatch(destination))
       throw new DangerousOperationException("destination contains dangerous characters.");
 
-    var command = _sshClient.RunCommand($"sudo rsync --verbose --archive --no-o --no-g --stats --info=progress2 --info=name0 '{copyFrom}' \"{destination}\"");
-    return command;
+    return new RsyncReader(
+      _sshClient,
+      $"sudo rsync --verbose --archive --no-o --no-g --stats --info=progress2 --info=name0 '{copyFrom}' \"{destination}\"",
+      cancellationToken: cancellationToken
+    );
   }
 
   public async ValueTask DisposeAsync()
@@ -185,7 +189,8 @@ public sealed class RsyncReader : IAsyncDisposable
   private readonly CancellationTokenSource _cancellationTokenSource = new();
 
   public RsyncState? State { get; private set; }
-  public int LogPosition { get; private set; }
+  public ImmutableDictionary<string, (string Value, string? Unit)>? FinalStats { get; private set; }
+
   public TimeSpan ListenDelay { get; set; } = TimeSpan.FromSeconds(1);
 
   public RsyncReader(SshClient client, string cmd, CancellationToken cancellationToken)
@@ -196,30 +201,43 @@ public sealed class RsyncReader : IAsyncDisposable
     cancellationToken.Register(_cancellationTokenSource.Cancel);
   }
 
-  private readonly Regex LastLineRe = new(
-    @"^[^\n]*\n",
+  private static readonly Regex LastLineNotStartingWihSpaceRe = new(
+    @"^(?<line>\S[^\n]*)\n",
     RegexOptions.Multiline | RegexOptions.RightToLeft
   );
+  // private readonly Regex LastLineRe = new(
+  //   @"^[^\n]*\n",
+  //   RegexOptions.Multiline | RegexOptions.RightToLeft
+  // );
 
-  private readonly Regex SpeedRe = new(@"^ *(?<num>[\d\.]+)(?<unit>[kMB])b/s");
-  private readonly Regex RsyncProgressRe = new(@"""
+  private static readonly Regex SpeedRe = new(@"^ *(?<num>[\d\.]+)(?<unit>[kMB])b/s");
+  private static readonly Regex RsyncProgressRe = new(@"""
     ^\ +(?<bytes>\d+)\ +(?<percent>\d{1,3})\%\ +(?<rate>[\d\.]+[kMB]?b/s)\ +(?<time>[\d\:\?])\ *(\(xfer\#(?<xfer>\d+),\ to-check=(?<tocheck>[\d/]+))?\n
     """, RegexOptions.Multiline);
 
+  private static readonly Regex FinalStatLineRe = new(@"^(?<key>[^:]): *(?<value>\S+)( +(?<units>.*))?$");
+
   private void ReadFinalStats(string finalState)
   {
-
+    FinalStats = finalState.Split('\n')
+      .Select(line => FinalStatLineRe.Match(line))
+      .Where(match => match.Success)
+      .ToImmutableDictionary(
+        match => match.Groups["key"].Value,
+        match => (match.Groups["value"].Value, Unit: match.Groups["units"].Success ? match.Groups["units"].Value : null)
+      );
   }
 
   public async IAsyncEnumerable<RsyncState> Listen()
   {
     const int capacity = 4 * 1024;
     var token = _cancellationTokenSource.Token;
+    token.ThrowIfCancellationRequested();
 
     string currentState = "";
 
     await using var bufferedStream = new BufferedStream(_sshCommand.OutputStream, capacity);
-    while (!_cancellationTokenSource.IsCancellationRequested)
+    while (true) // breaks if reaches the end OR in the delay at the end
     {
       var bytes = new byte[capacity];
 
@@ -247,8 +265,16 @@ public sealed class RsyncReader : IAsyncDisposable
             ? (ulong.Parse(parts[0]), ulong.Parse(parts[1]))
             : null;
 
+          string? latestFile = null;
+
+          if (LastLineNotStartingWihSpaceRe.Match(currentState, lastProgressLine.Index) is
+              { Success: true } lastFileLine)
+          {
+            latestFile = lastFileLine.Groups["line"].Value;
+          }
+
           State = new(
-            LatestFile: null!, // TODO
+            LatestFile: latestFile ?? State?.LatestFile ?? "??",
             LatestFileByteProgress: ulong.Parse(lastProgressLine.Groups["bytes"].Value),
             LatestFilePercent: byte.Parse(lastProgressLine.Groups["percent"].Value),
             LatestFileSpeed: ReadSpeedToBytes(lastProgressLine.Groups["rate"].Value),
@@ -258,21 +284,16 @@ public sealed class RsyncReader : IAsyncDisposable
             ToCheckDenominator: toCheck?.Item2 ?? State?.ToCheckDenominator ?? 0
           );
 
-          if
+          int idxOfNextCharAfterEndOfProgressLine = lastProgressLine.Index + lastProgressLine.Length;
+          int distanceFromEndOfStream = currentState.Length - idxOfNextCharAfterEndOfProgressLine;
+
+          bufferedStream.Seek(-distanceFromEndOfStream, SeekOrigin.End);
 
           yield return State;
         }
-
-        var lineMatchCollection = LastLineRe.Matches(currentState);
-        using var lineEnumerator = ((IEnumerable<Match>)lineMatchCollection).GetEnumerator();
-
-        if (lineEnumerator.MoveNext())
+        else
         {
-          var lastLine = lineEnumerator.Current;
-          if (RsyncProgressRe.Match(lastLine.Value) is { Success: true } progressMatch)
-          {
-
-          }
+          // didn't find an rsync progress line
         }
       }
 
