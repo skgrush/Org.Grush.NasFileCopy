@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -6,6 +7,11 @@ using Org.Grush.NasFileCopy.Remote.Share.Structures;
 using Org.Grush.NasFileCopy.Remote.Share.Structures.Enums;
 
 namespace Org.Grush.NasFileCopy.Remote.Share;
+
+public class TrueNasHttpConnectionFailureException(
+  string Explanation,
+  HttpStatusCode StatusCode
+) : Exception($"Connection failure (code={StatusCode}): {Explanation}");
 
 public sealed class TrueNasHttpClient(
   string rawHostname,
@@ -41,22 +47,91 @@ public sealed class TrueNasHttpClient(
       scheme: "Basic",
       parameter: Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($"{username}:{password}"))
     );
-    // Client.DefaultRequestHeaders.Accept.Add(new("application/json"));
+    Client.DefaultRequestHeaders.Accept.Add(new("application/json"));
 
-    using var response = await Client.GetAsync(BuildUri("core/ping"), cancellationToken);
-    response.EnsureSuccessStatusCode();
-    var body = await response.Content.ReadAsStringAsync(cancellationToken);
+    using var response = await Client.GetAsync(BuildUri("core/ping"), cancellationToken).ConfigureAwait(true);
+    if (response.StatusCode is HttpStatusCode.Unauthorized)
+      throw new TrueNasHttpConnectionFailureException("User not found or lacks API permissions.", response.StatusCode);
+
+    var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(true);
     if (body is not "\"pong\"")
-      throw new InvalidOperationException("Ping failed");
+      throw new TrueNasHttpConnectionFailureException($"Ping expected result \"pong\" but got '{body}'", response.StatusCode);
   }
 
   public ImmutableArray<MulticastDelegate> ApiMethods =>
   [
+    CallAnyAsync,
+    GetUsersAsync,
+    GetSystemInfoAsync,
+    GetSshSettingsAsync,
     GetDatasetsAsync,
     DeviceGetInfoAsync,
     FsStatAsync,
     FsListdirAsync,
   ];
+
+  public async Task<string> CallAnyAsync(string urlString, CancellationToken cancellationToken)
+  {
+    var url = BuildUri(urlString);
+    if (!url.IsAbsoluteUri || !url.IsWellFormedOriginalString() || !url.AbsoluteUri.StartsWith(Host.AbsoluteUri))
+      throw new ArgumentException("Nyeh");
+
+    using var response = await Client.GetAsync(url, cancellationToken).ConfigureAwait(true);
+
+
+    if (!response.IsSuccessStatusCode)
+    {
+      Console.WriteLine("Exited with status {0}", response.StatusCode);
+      foreach (var (headerKey, values) in response.Headers)
+      {
+        Console.WriteLine("\nHeader '{0}':", headerKey);
+        foreach (var val in values)
+          Console.WriteLine("   {0}", val);
+      }
+    }
+
+    var prefix = new string('#', 80);
+    Console.WriteLine(prefix);
+    Console.WriteLine(await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(true));
+    Console.WriteLine(prefix);
+    return "";
+  }
+
+  public async Task<ImmutableArray<UserDto>> GetUsersAsync(CancellationToken cancellationToken)
+  {
+    using var response = await GetWithBodyAsync(BuildUri("user"), new Dictionary<string, object>
+    {
+      {
+        "query-filters",
+        new[] {
+          new object[]
+          {
+            "builtin",
+            "=",
+            false
+          }
+        }
+      }
+    }, cancellationToken).ConfigureAwait(true);
+
+    var result = await ReadResponse<ImmutableArray<UserDto>>(response, cancellationToken).ConfigureAwait(true);
+
+    return result;
+  }
+
+  public async Task<SystemInfoDto> GetSystemInfoAsync(CancellationToken cancellationToken)
+  {
+    using var response = await Client.GetAsync(BuildUri("system/info"), cancellationToken);
+
+    return await ReadResponse<SystemInfoDto>(response, cancellationToken);
+  }
+
+  public async Task<SshSettingsDto> GetSshSettingsAsync(CancellationToken cancellationToken)
+  {
+    using var response = await Client.GetAsync(BuildUri("ssh"), cancellationToken);
+
+    return await ReadResponse<SshSettingsDto>(response, cancellationToken);
+  }
 
   public async Task<ImmutableArray<PoolDatasetFilesystemDto>> GetDatasetsAsync(CancellationToken cancellationToken)
   {
@@ -93,9 +168,21 @@ public sealed class TrueNasHttpClient(
   {
     response.EnsureSuccessStatusCode();
 
-    await using var content = await response.Content.ReadAsStreamAsync(cancellationToken);
+    await using var content = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
 
-    return await JsonSerializer.DeserializeAsync<T>(content, options: StandardOptions, cancellationToken);
+    return await JsonSerializer.DeserializeAsync<T>(content, options: StandardOptions, cancellationToken).ConfigureAwait(true);
+  }
+
+  private async Task<HttpResponseMessage> GetWithBodyAsync<TRequest>(Uri uri, TRequest requestBody, CancellationToken cancellationToken)
+  {
+    using StringContent content = new(JsonSerializer.Serialize(requestBody));
+
+    HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, uri)
+    {
+      Content = content,
+    };
+
+    return await Client.SendAsync(request, cancellationToken).ConfigureAwait(true);
   }
 
   private static readonly JsonSerializerOptions StandardOptions = new()
