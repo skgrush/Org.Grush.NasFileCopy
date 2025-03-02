@@ -8,62 +8,36 @@ namespace Org.Grush.NasFileCopy.Remote.Share;
 
 public class DangerousOperationException(string Message) : InvalidOperationException(Message);
 
-public record SshResult(
-  bool Success,
-  bool CommandFinished,
-  bool? Result = null,
-  byte? ExitStatus = null,
-  string? Output = null,
-  string? Error = null,
-  Exception? Exception = null
-) : SshResult<bool>(Success, CommandFinished, Result, ExitStatus, Output, Error, Exception)
+
+public record MountListLine(
+  string Device,
+  string MountPoint,
+  ImmutableHashSet<string> Flags
+)
 {
-  public new static SshResult Threw(Exception e)
-    => new(Success: false, CommandFinished: false, Exception: e);
+  public static readonly Regex Re = new("""
+    ^(?<device>.*?)
+    \ on\ (?<path>.*?)
+    (\ type\ (?<type>.*))? # some IMPLs list type inline, some have it as the first flag
+    \ \((?<flags>.*)\) # some IMPLs separate flags by comma and space, some omit space
+    $
+    """, RegexOptions.Multiline | RegexOptions.IgnorePatternWhitespace);
 
-  public static SshResult Completed(bool success, SshCommand cmd)
-    => new(
-      Success: success,
-      CommandFinished: true,
-      Result: success,
-      ExitStatus: (byte)cmd.ExitStatus,
-      Output: cmd.Result,
-      Error: cmd.Error
-    );
+  public static IEnumerable<MountListLine> ReadLines(string lines)
+    => Re.Matches(lines)
+      .Select(v =>
+        new MountListLine(
+          Device: v.Groups["device"].Value,
+          MountPoint: v.Groups["path"].Value,
+          Flags: ReadFlags(v.Groups["flags"].Value)
+        )
+      );
+
+  private static ImmutableHashSet<string> ReadFlags(string flags)
+    => flags.Split(',', StringSplitOptions.RemoveEmptyEntries)
+      .Select(v => v.Trim())
+      .ToImmutableHashSet();
 }
-
-public record SshResult<T>(
-  [property: MemberNotNullWhen(true, nameof(Result))]
-  bool Success,
-  [property: MemberNotNullWhen(true, nameof(ExitStatus))]
-  [property: MemberNotNullWhen(true, nameof(Output))]
-  [property: MemberNotNullWhen(true, nameof(Error))]
-  [property: MemberNotNullWhen(false, nameof(Exception))]
-  bool CommandFinished,
-  T? Result = null,
-  byte? ExitStatus = null,
-  string? Output = null,
-  string? Error = null,
-  Exception? Exception = null
-) where T : struct
-{
-  public static SshResult<T> Threw(Exception e)
-    => new(Success: false, CommandFinished: false, Exception: e);
-
-  public static SshResult<T> Completed(bool success, T result, SshCommand cmd)
-    => new(
-      Success: success,
-      CommandFinished: true,
-      Result: result,
-      ExitStatus: (byte)cmd.ExitStatus,
-      Output: cmd.Result,
-      Error: cmd.Error
-    );
-
-  public static implicit operator SshResult<T>((T, SshCommand) pair)
-      => Completed(true, pair.Item1, pair.Item2);
-}
-
 
 public sealed class TrueNasSshClient(
   ConnectionInfo sshCredentials
