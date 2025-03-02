@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.Net.Http.Json;
-using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Org.Grush.NasFileCopy.Remote.Share.Structures;
@@ -8,7 +7,7 @@ using Org.Grush.NasFileCopy.Remote.Share.Structures.Enums;
 
 namespace Org.Grush.NasFileCopy.Remote.Share;
 
-public sealed class TrueNasClient(
+public sealed class TrueNasHttpClient(
   string rawHostname,
   string username,
   string password
@@ -30,7 +29,7 @@ public sealed class TrueNasClient(
     if (!HostnameRe.IsMatch(rawHostname))
       throw new InvalidOperationException($"Hostname is invalid, should only be a domain or IP address. Got: {rawHostname}");
 
-    var handler = new HttpClientHandler()
+    var handler = new HttpClientHandler
     {
       ClientCertificateOptions = ClientCertificateOption.Manual,
       ServerCertificateCustomValidationCallback = (_, _, _, _) => true,

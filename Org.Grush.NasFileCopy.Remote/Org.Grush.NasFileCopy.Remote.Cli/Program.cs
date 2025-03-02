@@ -17,7 +17,7 @@ Console.WriteLine();
 
 var cancellationToken = CancellationToken.None;
 
-await using var client = new TrueNasClient(hostname, username, password);
+await using var client = new TrueNasHttpClient(hostname, username, password);
 
 await client.ConnectAsync(cancellationToken);
 
