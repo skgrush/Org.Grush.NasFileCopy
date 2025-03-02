@@ -8,49 +8,23 @@ namespace Org.Grush.NasFileCopy.Remote.Share;
 
 public class DangerousOperationException(string message, string paramName) : ArgumentException(message, paramName);
 
-
-public record MountListLine(
-  string Device,
-  string MountPoint,
-  ImmutableHashSet<string> Flags
-)
-{
-  public static readonly Regex Re = new("""
-    ^(?<device>.*?)
-    \ on\ (?<path>.*?)
-    (\ type\ (?<type>.*))? # some IMPLs list type inline, some have it as the first flag
-    \ \((?<flags>.*)\) # some IMPLs separate flags by comma and space, some omit space
-    $
-    """, RegexOptions.Multiline | RegexOptions.IgnorePatternWhitespace);
-
-  public static IEnumerable<MountListLine> ReadLines(string lines)
-    => Re.Matches(lines)
-      .Select(v =>
-        new MountListLine(
-          Device: v.Groups["device"].Value,
-          MountPoint: v.Groups["path"].Value,
-          Flags: ReadFlags(v.Groups["flags"].Value)
-        )
-      );
-
-  private static ImmutableHashSet<string> ReadFlags(string flags)
-    => flags.Split(',', StringSplitOptions.RemoveEmptyEntries)
-      .Select(v => v.Trim())
-      .ToImmutableHashSet();
-}
-
 public sealed class TrueNasSshClient(
-  ConnectionInfo sshCredentials,
   IAnalyticsReporter analyticsReporter
 ) : IAsyncDisposable
 {
-  private readonly SshClient _sshClient = new(sshCredentials);
-  private readonly Regex _dangerousShellQuoteChars = new("""[\\"\n]""");
-  private readonly Regex _dangerousSingleQuoteChars = new("""[\\'\n]""");
+  private static readonly Regex DangerousShellQuoteChars = new("""[\\"\n]""");
+  private static readonly Regex DangerousSingleQuoteChars = new("""[\\'\n]""");
 
-  public async Task ConnectAsync(CancellationToken cancellationToken)
+  private SshClient? SshClient { get; set; }
+
+  public async Task ConnectAsync(
+    ConnectionInfo sshCredentials,
+    CancellationToken cancellationToken
+  )
   {
-    await _sshClient.ConnectAsync(cancellationToken);
+    SshClient = new SshClient(sshCredentials);
+
+    await SshClient.ConnectAsync(cancellationToken);
   }
 
   public async Task<SshResult<bool>> UnmountAsync(string devPath, CancellationToken cancellationToken) =>
@@ -96,14 +70,14 @@ public sealed class TrueNasSshClient(
 
   private string ProcessDoubleQuotePath(string path, string name)
   {
-    if (_dangerousShellQuoteChars.IsMatch(path))
+    if (DangerousShellQuoteChars.IsMatch(path))
       throw new DangerousOperationException("contains dangerous characters.", name);
     return path.Replace("~", "$HOME");
   }
 
   private string ProcessSingleQuotePath(string path, string name)
   {
-    if (_dangerousSingleQuoteChars.IsMatch(path))
+    if (DangerousSingleQuoteChars.IsMatch(path))
       throw new DangerousOperationException("cannot contain ' or \\ or $", name);
     return path;
   }
@@ -129,7 +103,7 @@ public sealed class TrueNasSshClient(
     return await CallCommand<ImmutableArray<string>>(
       preconditions: () =>
       {
-        if (_dangerousShellQuoteChars.IsMatch(path))
+        if (DangerousShellQuoteChars.IsMatch(path))
           throw new DangerousOperationException("contains dangerous characters.", nameof(path));
       },
       getCommand: () => $"ls -1 \"{path}\" ",
@@ -150,6 +124,33 @@ public sealed class TrueNasSshClient(
     );
   }
 
+  public async Task<SshResult<ImmutableArray<LsLine>>> LsVerboseAsync(string path, CancellationToken cancellationToken)
+  {
+    path = path.Replace("~", "$HOME");
+    return await CallCommand<ImmutableArray<LsLine>>(
+      preconditions: () =>
+      {
+        if (DangerousShellQuoteChars.IsMatch(path))
+          throw new DangerousOperationException("contains dangerous characters.", nameof(path));
+      },
+      getCommand: () => $"ls {LsLine.LsFlags} \"{path}\" ",
+      handler: command =>
+      {
+        if (command.ExitStatus is 0)
+        {
+          return (null, true, [
+            ..LsLine.Parse(command.Result)
+          ]);
+        }
+
+        analyticsReporter.LogError("ls exited with {status}", command.ExitStatus);
+        return ($"ls exited unexpectedly with {command.ExitStatus}", false, null);
+
+      },
+      cancellationToken: cancellationToken
+    );
+  }
+
   public RsyncReader Rsync(
     string copyFrom,
     string destination,
@@ -158,19 +159,24 @@ public sealed class TrueNasSshClient(
   {
     if (copyFrom.Contains('\''))
       throw new DangerousOperationException("cannot contain '", nameof(copyFrom));
-    if (_dangerousShellQuoteChars.IsMatch(destination))
+    if (DangerousShellQuoteChars.IsMatch(destination))
       throw new DangerousOperationException("contains dangerous characters.", nameof(destination));
+    if (SshClient is null)
+      throw new InvalidOperationException("Connect first");
 
     return new RsyncReader(
-      _sshClient,
+      SshClient,
       $"sudo rsync --verbose --archive --no-o --no-g --stats -P '{copyFrom}' \"{destination}\"",
       cancellationToken: cancellationToken
     );
   }
 
-  public async ValueTask DisposeAsync()
+  public ValueTask DisposeAsync()
   {
-    _sshClient.Dispose();
+    SshClient?.Dispose();
+    SshClient = null;
+
+    return default;
   }
 
 
@@ -185,9 +191,12 @@ public sealed class TrueNasSshClient(
   {
     try
     {
+      if (SshClient is null)
+        throw new InvalidOperationException("Connect first");
+
       preconditions?.Invoke();
 
-      using var command = _sshClient.CreateCommand(getCommand());
+      using var command = SshClient.CreateCommand(getCommand());
       await using var _ = cancellationToken.Register(c => (c as SshCommand)?.CancelAsync(),
         useSynchronizationContext: true, state: command);
 
