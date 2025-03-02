@@ -4,12 +4,12 @@ using Renci.SshNet;
 namespace Org.Grush.NasFileCopy.Remote.Share.Ssh;
 
 public record SshResult<T>(
-  [property: MemberNotNullWhen(true, nameof(Result))]
+  [property: MemberNotNullWhen(true, "Result")]
   bool Success,
-  [property: MemberNotNullWhen(true, nameof(ExitStatus))]
-  [property: MemberNotNullWhen(true, nameof(Output))]
-  [property: MemberNotNullWhen(true, nameof(Error))]
-  [property: MemberNotNullWhen(false, nameof(Exception))]
+  [property: MemberNotNullWhen(true, "ExitStatus")]
+  [property: MemberNotNullWhen(true, "Output")]
+  [property: MemberNotNullWhen(true, "Error")]
+  [property: MemberNotNullWhen(false, "Exception")]
   bool CommandFinished,
   T? Result = null,
   byte? ExitStatus = null,
