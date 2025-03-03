@@ -23,10 +23,13 @@ public record LsLine(
   string Group,
   ulong Size,
   DateTime? Timestamp,
-  string Name
+  string Name,
+  string? LinkedName
 )
 {
-  public const string LsFlags = "-al -D \"%FT%T\"";
+  public const string LsFlags = """
+    -al --time-style="+%FT%T"
+    """;
 
   private static readonly Regex Re = new("""
     ^
@@ -56,17 +59,28 @@ public record LsLine(
       .Split('\n')
       .Select(line => Re.Match(line))
       .Where(match => match.Success)
-      .Select(match => new LsLine(
-        FileType: (LsType)match.Groups["FileType"].Value[0],
-        FileMode: ParseMode(match.Groups["FileMode"].Value),
-        AclFlag: match.Groups["AclFlag"].Value,
-        _UnknownNumber: match.Groups["unknownNumber"].Value,
-        User: match.Groups["user"].Value,
-        Group: match.Groups["group"].Value,
-        Size: ulong.Parse(match.Groups["size"].Value),
-        Timestamp: DateTime.TryParse(match.Groups["timestamp"].Value, out var dt) ? dt : null,
-        Name: match.Groups["name"].Value
-      ));
+      .Select(match =>
+      {
+        LsType fileType = (LsType)match.Groups["FileType"].Value[0];
+        string name = match.Groups["name"].Value;
+        string? linkName = null;
+
+        if (fileType is LsType.SymbolicLink && name.Split(" -> ") is [string n1, string l1])
+          (name, linkName) = (n1, l1);
+
+        return new LsLine(
+          FileType: fileType,
+          FileMode: ParseMode(match.Groups["FileMode"].Value),
+          AclFlag: match.Groups["AclFlag"].Value,
+          _UnknownNumber: match.Groups["unknownNumber"].Value,
+          User: match.Groups["user"].Value,
+          Group: match.Groups["group"].Value,
+          Size: ulong.Parse(match.Groups["size"].Value),
+          Timestamp: DateTime.TryParse(match.Groups["timestamp"].Value, out var dt) ? dt : null,
+          Name: name,
+          LinkedName: linkName
+        );
+      });
 
   // public static UnixFileMode ParseMode(string mode)
   // {
