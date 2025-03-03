@@ -165,8 +165,9 @@ public sealed class TrueNasSshClient(
       throw new InvalidOperationException("Connect first");
 
     return new RsyncReader(
-      SshClient,
-      $"sudo rsync --verbose --archive --no-o --no-g --stats -P '{copyFrom}' \"{destination}\"",
+      client: SshClient,
+      copyFrom: $"'{copyFrom}'",
+      destination: $"\"{destination}\"",
       cancellationToken: cancellationToken
     );
   }

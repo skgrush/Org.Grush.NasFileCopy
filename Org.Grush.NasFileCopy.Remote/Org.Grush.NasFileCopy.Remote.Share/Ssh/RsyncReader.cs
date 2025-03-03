@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 using Renci.SshNet;
@@ -7,19 +8,40 @@ namespace Org.Grush.NasFileCopy.Remote.Share.Ssh;
 
 public sealed class RsyncReader : IAsyncDisposable
 {
-  private readonly SshCommand _sshCommand;
-  private readonly CancellationTokenSource _cancellationTokenSource = new();
+  private const string StdArgs = "--verbose --archive --no-o --no-g --times   --stats -P";
 
+  private readonly SshClient _client;
+  private readonly CancellationTokenSource _cancellationTokenSource = new();
+  private readonly string _rsyncCommandText;
+
+  // private SshCommand? _sshCommand;
+  private uint? ProcessId { get; set; }
+
+  public string RunLabel { get; }
+  public string LogFilePath { get; }
   public RsyncState? State { get; private set; }
   public ImmutableDictionary<string, (string Value, string? Unit)>? FinalStats { get; private set; }
 
   public TimeSpan ListenDelay { get; set; } = TimeSpan.FromSeconds(1);
+  public uint EmptyListenDelaysBeforeRecheck { get; set; } = 5;
 
-  public RsyncReader(SshClient client, string cmd, CancellationToken cancellationToken)
+  public RsyncReader(
+    SshClient client,
+    string copyFrom,
+    string destination,
+    CancellationToken cancellationToken
+  )
   {
-    _sshCommand = client.RunCommand(cmd);
+    Debug.Assert(copyFrom[0] is '\'');
+    Debug.Assert(destination[0] is '"');
 
-    _cancellationTokenSource.Token.Register(_sshCommand.CancelAsync);
+    _client = client;
+
+    RunLabel = DateTime.Now.ToString("yyyyMMddHHmmss");
+    LogFilePath = $"$HOME/rsync.{RunLabel}.log";
+
+    _rsyncCommandText = $"sudo rsync {StdArgs} --log-file={LogFilePath} {copyFrom} {destination}";
+
     cancellationToken.Register(_cancellationTokenSource.Cancel);
   }
 
@@ -50,23 +72,83 @@ public sealed class RsyncReader : IAsyncDisposable
       );
   }
 
-  public async IAsyncEnumerable<RsyncState> Listen()
+  private static readonly string IdFinderOutput = "<${?}=${!}>";
+  private static readonly Regex IdFinderRe = new(@"<(?<exit>\d+)=(?<pid>\d+)>");
+  public async Task StartNewAsync()
   {
+    if (ProcessId.HasValue)
+      throw new InvalidOperationException("Re-execution");
+
+    var cmd = _client.RunCommand($"{_rsyncCommandText} & ; echo \"{IdFinderOutput}\"");
+
+    var result = await Task.Factory.FromAsync(
+      asyncResult: cmd.BeginExecute(),
+      endMethod: cmd.EndExecute
+    );
+
+    var match = IdFinderRe.Match(result);
+    byte exitCode = byte.Parse(match.Groups["exit"].Value);
+    uint pid = uint.Parse(match.Groups["pid"].Value);
+
+    if (exitCode is not 0)
+      throw new RsyncCommandFailedException(exitCode, $"{nameof(StartNewAsync)} failed");
+    if (pid is 0)
+      throw new RsyncCommandFailedException(0, $"{nameof(StartNewAsync)} returned 0 but pid is 0.");
+    ProcessId = pid;
+  }
+
+  public class RsyncException(string message) : Exception(message);
+  public class RsyncProcessNotFoundException(string message) : RsyncException(message);
+
+  public class RsyncCommandFailedException(byte exitCode, string? message)
+    : RsyncException($"rsync exited with {exitCode}{(message is null ? "" : $"; {message}")}");
+
+  private async Task<uint> GetProcessDirOrThrow(TrueNasSshClient client)
+  {
+    if (ProcessId is null)
+      throw new Exception($"First {nameof(StartNewAsync)}");
+
+    string procDir = $"/proc/{ProcessId.Value}/";
+
+    var lsDir = await client.LsVerboseAsync(procDir, _cancellationTokenSource.Token);
+
+    if (!lsDir.Success)
+      throw new RsyncProcessNotFoundException($"ls on /proc/ dir returned {lsDir.ExitStatus} {lsDir.Commentary}");
+
+    return ProcessId.Value;
+  }
+
+  public async IAsyncEnumerable<RsyncState> ListenAsync(TrueNasSshClient client)
+  {
+    var procId = await GetProcessDirOrThrow(client);
+    using var tailCommand = _client.RunCommand($"tail --pid {procId} -f /proc/{procId}/fd/1");
+
     const int capacity = 4 * 1024;
     var token = _cancellationTokenSource.Token;
     token.ThrowIfCancellationRequested();
 
     string currentState = "";
+    int iterationsSinceNoOutput = 0;
 
-    await using var bufferedStream = new BufferedStream(_sshCommand.OutputStream, capacity);
+    await using var bufferedStream = new BufferedStream(tailCommand.OutputStream, capacity);
     while (true) // breaks if reaches the end OR in the delay at the end
     {
       var bytes = new byte[capacity];
 
       var bytesRead = await bufferedStream.ReadAtLeastAsync(bytes, capacity, throwOnEndOfStream: false, cancellationToken: token);
 
-      if (bytesRead > 0)
+      if (bytesRead < 1)
       {
+        ++iterationsSinceNoOutput;
+        if (iterationsSinceNoOutput > EmptyListenDelaysBeforeRecheck)
+        {
+          await GetProcessDirOrThrow(client); // ignore output, check that process is still connected
+          iterationsSinceNoOutput = 0;
+        }
+      }
+      else
+      {
+        iterationsSinceNoOutput = 0;
         if (bytesRead == capacity) // if we ReadAtLeast an entire capacity full, we have left our old currentState behind
           currentState = "";
 
@@ -144,7 +226,6 @@ public sealed class RsyncReader : IAsyncDisposable
 
   public async ValueTask DisposeAsync()
   {
-    _sshCommand.Dispose();
     _cancellationTokenSource.Dispose();
   }
 }
