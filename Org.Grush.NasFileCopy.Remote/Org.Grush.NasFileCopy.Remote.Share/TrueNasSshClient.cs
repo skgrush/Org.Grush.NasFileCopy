@@ -97,16 +97,33 @@ public sealed class TrueNasSshClient(
       cancellationToken: cancellationToken
     );
 
-  public async Task<SshResult<ImmutableArray<string>>> LsAsync(string path, CancellationToken cancellationToken)
-  {
-    path = path.Replace("~", "$HOME");
-    return await CallCommand<ImmutableArray<string>>(
+  public async Task<SshResult<(string contents, object?)>> ReadFileAsync(string filePath, CancellationToken cancellationToken) =>
+    await CallCommand<(string, object?)>(
+      preconditions: () =>
+      {
+        if (DangerousSingleQuoteChars.IsMatch(filePath) || filePath.Contains('$'))
+          throw new DangerousOperationException("contains dangerous characters.", filePath);
+      },
+      getCommand: () => $"cat '{filePath}'",
+      handler: command =>
+      {
+        if (command.ExitStatus is 0)
+          return (null, true, (command.Result, null));
+
+        analyticsReporter.LogError("cat exited with {status}", command.ExitStatus);
+        return ($"cat exited unexpectedly with {command.ExitStatus}", false, null);
+      },
+      cancellationToken: cancellationToken
+    );
+
+  public async Task<SshResult<ImmutableArray<string>>> LsAsync(string path, CancellationToken cancellationToken) =>
+    await CallCommand<ImmutableArray<string>>(
       preconditions: () =>
       {
         if (DangerousShellQuoteChars.IsMatch(path))
           throw new DangerousOperationException("contains dangerous characters.", nameof(path));
       },
-      getCommand: () => $"ls -1 \"{path}\" ",
+      getCommand: () => $"ls -1 \"{path.Replace("~", "$HOME")}\" ",
       handler: command =>
       {
         if (command.ExitStatus is 0)
@@ -122,7 +139,6 @@ public sealed class TrueNasSshClient(
       },
       cancellationToken: cancellationToken
     );
-  }
 
   public async Task<SshResult<ImmutableArray<LsLine>>> LsVerboseAsync(string path, CancellationToken cancellationToken)
   {
@@ -151,7 +167,7 @@ public sealed class TrueNasSshClient(
     );
   }
 
-  public RsyncReader Rsync(
+  public RsyncStdOutReader Rsync(
     string copyFrom,
     string destination,
     CancellationToken cancellationToken
@@ -164,7 +180,7 @@ public sealed class TrueNasSshClient(
     if (SshClient is null)
       throw new InvalidOperationException("Connect first");
 
-    return new RsyncReader(
+    return new RsyncStdOutReader(
       client: SshClient,
       copyFrom: $"'{copyFrom}'",
       destination: $"\"{destination}\"",
@@ -198,13 +214,7 @@ public sealed class TrueNasSshClient(
       preconditions?.Invoke();
 
       using var command = SshClient.CreateCommand(getCommand());
-      await using var _ = cancellationToken.Register(c => (c as SshCommand)?.CancelAsync(),
-        useSynchronizationContext: true, state: command);
-
-      await Task.Factory.FromAsync(
-        asyncResult: command.BeginExecute(),
-        endMethod: command.EndExecute
-      );
+      await command.ExecuteAsync(cancellationToken);
 
       (string? commentary, bool succeeded, T? result) = handler(command);
 
