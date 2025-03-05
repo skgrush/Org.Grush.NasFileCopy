@@ -6,17 +6,8 @@ using Renci.SshNet;
 
 namespace Org.Grush.NasFileCopy.Remote.Share.Ssh;
 
-public record RsyncLogEntry(
-  DateTime Timestamp,
-  uint LoggerPid,
-  uint RsyncPid,
-  ulong BytesTransferred,
-  string ItemizedChanges,
-  string Filename
-);
-
 /// <summary>
-///
+/// Read from an rsync log file as it streams.
 /// </summary>
 /// <remarks>
 /// <b>Re: PIDs:</b>
@@ -31,23 +22,52 @@ public record RsyncLogEntry(
 public sealed class RsyncLogReader : IAsyncDisposable
 {
   private const string RsyncLogDir = "$HOME/Org.Grush.NasFileCopy/rsync-logs";
-  private const string SEP = " /// ";
+  private const string Sep = " /// ";
   /// <summary>
   /// <a href="https://linux.die.net/man/5/rsyncd.conf#:~:text=The%20single%2Dcharacter%20escapes%20that%20are%20understood%20are%20as%20follows">See man rsyncd.conf(5)</a>
   /// </summary>
   /// <example>
-  /// 2025/03/03 12:11:31 [67654]  /// 67655 /// 1628522496 /// >f+++++++ /// Users/samuel/dest/TrueNAS-SCALE-24.04.1.1 copy 2.iso ///
+  /// <code>
+  /// 2025/03/03 13:52:17 [68684] receiving file list
+  /// 2025/03/03 13:52:17 [68684] delta-transmission disabled for local transfer or --whole-file
+  /// 2025/03/03 13:52:17 [68684] ./
+  /// 2025/03/03 13:52:17 [68684] A/
+  /// 2025/03/03 13:52:17 [68684]  /// Users/samuel/dest/.DS_Store /// 10284 /// 10244 /// 10244 /// 68685
+  /// 2025/03/03 13:52:17 [68684] A/1/
+  /// 2025/03/03 13:52:22 [68684]  /// Users/samuel/dest/TOPO-MOOKAR-02.cdr /// 631342376 /// 631265280 /// 631265280 /// 68685
+  /// 2025/03/03 13:52:26 [68684]  /// Users/samuel/dest/TOPO-MOOKAR-03 copy.cdr /// 641688088 /// 641609728 /// 641609728 /// 68685
+  /// 2025/03/03 13:52:37 [68684]  /// Users/samuel/dest/TrueNAS-SCALE-24.04.1.1 copy 2.iso /// 1628721328 /// 1628522496 /// 1628522496 /// 68685
+  /// 2025/03/03 13:52:49 [68684]  /// Users/samuel/dest/TrueNAS-SCALE-24.04.1.1.iso /// 1628721328 /// 1628522496 /// 1628522496 /// 68685
+  /// 2025/03/03 13:52:49 [68684]  /// Users/samuel/dest/txt.txt /// 43 /// 3 /// 3 /// 68685
+  /// 2025/03/03 13:53:08 [68684]  /// Users/samuel/dest/ubuntu-24.04.1-live-server-amd64 copy 2.iso /// 2774213332 /// 2773874688 /// 2773874688 /// 68685
+  /// 2025/03/03 13:53:29 [68684]  /// Users/samuel/dest/ubuntu-24.04.1-live-server-amd64 copy.iso /// 2774213332 /// 2773874688 /// 2773874688 /// 68685
+  /// 2025/03/03 13:53:29 [68684]  /// Users/samuel/dest/A/.DS_Store /// 6188 /// 6148 /// 6148 /// 68685
+  /// 2025/03/03 13:53:29 [68684]  /// Users/samuel/dest/A/1/.DS_Store /// 6188 /// 6148 /// 6148 /// 68685
+  /// 2025/03/03 13:53:49 [68684]  /// Users/samuel/dest/A/1/ubuntu-24.04.1-live-server-amd64 copy 2 12.50.29.iso /// 2774213332 /// 2773874688 /// 2773874688 /// 68685
+  /// 2025/03/03 13:53:49 [68684] sent 1927 bytes  received 1593 bytes  total size 19828295678
+  /// </code>
+  /// <code>
+  /// 2025/03/03 12:03:54 [67377] rsync: write failed on "/this/is/a/path/file.txt": No space left on device (28)
+  /// 2025/03/03 12:03:54 [67377] rsync error: error in file IO (code 11) at /some/path/to/a/source/rsync/rsync/receiver.c(268) [receiver=2.6.9]
+  /// 2025/03/03 12:03:54 [67377] rsync: connection unexpectedly closed (1026 bytes received so far) [generator]
+  /// 2025/03/03 12:03:54 [67377] rsync error: error in rsync protocol data stream (code 12) at /some/path/to/a/source/rsync/rsync/io.c(453) [generator=[2.6.9]
+  /// </code>
   /// </example>
-  private const string LogFmt = $"{SEP}%p{SEP}%b{SEP}%i{SEP}%f{SEP}";
+  private const string LogFmt = $"{Sep}%p{Sep}%b{Sep}%i{Sep}%f{Sep}";
   private const string StdArgs = $"--verbose --archive --no-o --no-g --times  --log-file-format=\"{LogFmt}\"  --stats -P";
 
+  /// <summary>Captures the an entire log line's datetime/pid and contents. Use the other `Re`s to match specific lines.</summary>
   private static readonly Regex LogPrefixRe = new(@"^(?<datetime>[\d/]{10} [\d:]{8}) \[(?<boxed-pid>\d+)\] (?<contents>[^\n]*)$", RegexOptions.Multiline);
+  /// <summary>Matches the contents of a transfer log line.</summary>
   private static readonly Regex LogRe = new(@"^ /// (?<pid>\d+) /// (?<fileBytes>\d+) /// (?<itemizedChanges>\S+) /// (?<fileName>.*) /// $");
+  /// <summary>Matches the contents of a final log line with sent/received/total bytes.</summary>
   private static readonly Regex FinalLogRe = new(@"^sent\s+(?<sent>\d+)\s+bytes\s+received(?<recv>\d+)\s+bytes\s+total size\s+(?<total>\d+)$");
+  /// <summary>Matches the contents of a log from rsync itself.</summary>
+  private static readonly Regex MetaLogRe = new(@"^rsync[: ]+(?<meta>[^\n]+)$");
 
   private readonly SshClient _client;
-  private readonly CancellationTokenSource _cancellationTokenSource = new();
   private readonly string _rsyncCommandText;
+  private readonly CancellationTokenSource _cancellationTokenSource = new();
 
   private uint? ProcessId { get; set; }
 
@@ -55,7 +75,7 @@ public sealed class RsyncLogReader : IAsyncDisposable
   public string LogFilePath { get; }
   public string LockFileBaseName { get; }
   public State? CurrentState { get; private set; }
-  // public ImmutableDictionary<string, (string Value, string? Unit)>? FinalStats { get; private set; }
+  public bool Completed => CurrentState?.CompletedSuccessfully is not null;
 
   public TimeSpan ListenDelay { get; set; } = TimeSpan.FromSeconds(1);
   public uint EmptyListenDelaysBeforeRecheck { get; set; } = 5;
@@ -126,9 +146,7 @@ public sealed class RsyncLogReader : IAsyncDisposable
     await CreateLockFileAsync();
   }
 
-
-
-  public async IAsyncEnumerable<State> ListenAsync(TrueNasSshClient client)
+  public async IAsyncEnumerable<State> ListenAsync(Func<string, Task> errorLogger)
   {
     var processIdFromLockFile = await ReadIdFromLockFileAsync();
 
@@ -153,10 +171,11 @@ public sealed class RsyncLogReader : IAsyncDisposable
       // read into the string until we hit the end
       int bytesRead = 0;
       int bytesReadThisLoop;
+      var bytes = new byte[capacity];
+      var mem = bytes.AsMemory(0, capacity);
       do
       {
-        var bytes = new byte[capacity];
-        bytesReadThisLoop = await bufferedStream.ReadAsync(bytes, 0, capacity, token);
+        bytesReadThisLoop = await bufferedStream.ReadAsync(mem, token);
         bytesRead += bytesReadThisLoop;
 
         if (bytesReadThisLoop > 0)
@@ -170,7 +189,21 @@ public sealed class RsyncLogReader : IAsyncDisposable
         if (iterationsSinceNoOutput > EmptyListenDelaysBeforeRecheck)
         {
           if (tailCommand.ExitStatus is not null || executeTask.IsCompleted)
+          {
+            // unexpectedly, we started a new iteration with a closed command of some kind
+            State state = (CurrentState ?? State.Empty) with
+              {
+                CompletedSuccessfully = tailCommand.ExitStatus switch
+                {
+                  null => null,
+                  0 => true,
+                  _ => false,
+                }
+              };
+            CurrentState = state;
+            yield return state;
             yield break;
+          }
 
           iterationsSinceNoOutput = 0;
         }
@@ -178,10 +211,8 @@ public sealed class RsyncLogReader : IAsyncDisposable
       else
       {
         iterationsSinceNoOutput = 0;
-        if (bytesRead == capacity)  // if we ReadAtLeast an entire capacity full, we have left our old currentState behind
-          currentState = "";
 
-        int lastIdx = 0;
+        int nextUnreadIdx = 0;
         foreach (Match lineMatch in LogPrefixRe.Matches(currentState))
         {
           var lineContents = lineMatch.Groups["contents"].Value;
@@ -189,11 +220,12 @@ public sealed class RsyncLogReader : IAsyncDisposable
           if (LogRe.Match(lineContents) is { Success: true } logMatch)
           {
             var fileBytes = ulong.Parse(logMatch.Groups["fileBytes"].Value);
-            var total = (CurrentState?.TotalBytes ?? 0) + fileBytes;
+            var total = (CurrentState?.TotalKnownBytesTransmitted ?? 0) + fileBytes;
             State state = new(
-              CurrentFile: logMatch.Groups["fileName"].Value,
-              TotalBytes: total,
-              CurrentFileBytes: fileBytes
+              LatestTransmittedFile: logMatch.Groups["fileName"].Value,
+              TotalKnownBytesTransmitted: total,
+              LatestTransmittedFileBytes: fileBytes,
+              CompletedSuccessfully: null
             );
             CurrentState = state;
             yield return state;
@@ -201,22 +233,26 @@ public sealed class RsyncLogReader : IAsyncDisposable
           else if (FinalLogRe.Match(lineContents) is { Success: true } finalLogMatch)
           {
             State state = new(
-              CurrentFile: "",
-              CurrentFileBytes: CurrentState?.TotalBytes ?? 0,
-              TotalBytes: ulong.Parse(finalLogMatch.Groups["total"].Value)
+              LatestTransmittedFile: "",
+              LatestTransmittedFileBytes: ulong.Parse(finalLogMatch.Groups["total"].Value),
+              TotalKnownBytesTransmitted: CurrentState?.TotalKnownBytesTransmitted ?? 0,
+              CompletedSuccessfully: true
             );
             CurrentState = state;
             yield return state;
+            yield break;
+          }
+          else if (MetaLogRe.Match(lineContents) is { Success: true } metaLogMatch)
+          {
+            await errorLogger(metaLogMatch.Groups["meta"].Value);
           }
           // else ignored line
 
-          lastIdx = lineMatch.Index + lineMatch.Length;
+          nextUnreadIdx = lineMatch.Index + lineMatch.Length;
         }
-        // read all of the current tream
 
-        int distanceFromEndOfStream = currentState.Length - lastIdx;
-
-        bufferedStream.Seek(-distanceFromEndOfStream, SeekOrigin.End);
+        // trim off everything we've read
+        currentState = currentState[nextUnreadIdx..];
       }
 
       await Task.Delay(ListenDelay, token);
@@ -306,11 +342,20 @@ public sealed class RsyncLogReader : IAsyncDisposable
   public class RsyncCommandFailedException(byte exitCode, string? message)
     : RsyncException($"rsync exited with {exitCode}{(message is null ? "" : $"; {message}")}");
 
-  public record struct State(
-    string CurrentFile,
-    ulong CurrentFileBytes,
-    ulong TotalBytes
-  );
+  /// <summary>Rsync state.</summary>
+  /// <param name="LatestTransmittedFile">Name of the latest transmitted file, <c>""</c> if complete, or <c>null</c> if no file emitted.</param>
+  /// <param name="LatestTransmittedFileBytes">Size the latest file in bytes, or final transmitted bytes if complete.</param>
+  /// <param name="TotalKnownBytesTransmitted">Total known bytes transmitted.</param>
+  /// <param name="CompletedSuccessfully"><c>null</c> when incomplete, else <c>true</c> or <c>false</c> for successful completion.</param>
+  public readonly record struct State(
+    string? LatestTransmittedFile,
+    ulong LatestTransmittedFileBytes,
+    ulong TotalKnownBytesTransmitted,
+    bool? CompletedSuccessfully
+  )
+  {
+    internal static readonly State Empty = new(null, 0, 0, null);
+  }
 
   ValueTask IAsyncDisposable.DisposeAsync()
   {

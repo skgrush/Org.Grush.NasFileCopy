@@ -167,7 +167,7 @@ public sealed class TrueNasSshClient(
     );
   }
 
-  public RsyncStdOutReader Rsync(
+  public RsyncLogReader Rsync(
     string copyFrom,
     string destination,
     CancellationToken cancellationToken
@@ -177,10 +177,10 @@ public sealed class TrueNasSshClient(
       throw new DangerousOperationException("cannot contain '", nameof(copyFrom));
     if (DangerousShellQuoteChars.IsMatch(destination))
       throw new DangerousOperationException("contains dangerous characters.", nameof(destination));
-    if (SshClient is null)
+    if (SshClient?.IsConnected is not true)
       throw new InvalidOperationException("Connect first");
 
-    return new RsyncStdOutReader(
+    return new RsyncLogReader(
       client: SshClient,
       copyFrom: $"'{copyFrom}'",
       destination: $"\"{destination}\"",
