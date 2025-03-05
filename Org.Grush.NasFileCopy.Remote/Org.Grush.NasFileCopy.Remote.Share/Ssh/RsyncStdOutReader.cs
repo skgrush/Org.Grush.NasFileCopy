@@ -6,9 +6,33 @@ using Renci.SshNet;
 
 namespace Org.Grush.NasFileCopy.Remote.Share.Ssh;
 
-public sealed class RsyncReader : IAsyncDisposable
+/// <summary>
+///
+/// </summary>
+/// <remarks>
+/// <b>Re: PIDs:</b>
+/// At least on macOS, the PID of the shell execution and the STDOUT-%p are the same.
+/// BUT they differ from the [boxed] log PID and the logger-%p.
+///
+/// An example `ps aux` output found:
+/// shell-backgrounded PID and stdout-%p: 68221
+/// log [boxed] PID:                      68225
+/// logged-%p:                            68226     = ps-aux: a seemingly-identical-to-68221 cmd
+/// </remarks>
+public sealed class RsyncStdOutReader : IAsyncDisposable
 {
-  private const string StdArgs = "--verbose --archive --no-o --no-g --times   --stats -P";
+  private const string SEP = " /// ";
+  /// <summary>
+  /// <a href="https://linux.die.net/man/5/rsyncd.conf#:~:text=The%20single%2Dcharacter%20escapes%20that%20are%20understood%20are%20as%20follows">See man rsyncd.conf(5)</a>
+  /// </summary>
+  /// <example>
+  /// 2025/03/03 12:11:31 [67654]  /// 67655 /// 1628522496 /// >f+++++++ /// Users/samuel/dest/TrueNAS-SCALE-24.04.1.1 copy 2.iso
+  /// </example>
+  private const string LogFmt = $"{SEP}%i{SEP}%b{SEP}%p{SEP}%f{SEP}";
+  private const string StdArgs = $"--verbose --archive --no-o --no-g --times  --log-file-format=\"{LogFmt}\"  --stats -P";
+
+  private static readonly Regex LogPrefixRe = new(@"^(?<datetime>[\d/]{10} [\d:]{8}) \[(?<boxed-pid>\d+)\] ");
+  private static readonly Regex LogRe = new(@"^ /// (?<pid>\d+) /// (?<fileBytes>\d+) /// (?<itemizedChanges>\S+) /// (?<fileName>.*)$");
 
   private readonly SshClient _client;
   private readonly CancellationTokenSource _cancellationTokenSource = new();
@@ -25,7 +49,7 @@ public sealed class RsyncReader : IAsyncDisposable
   public TimeSpan ListenDelay { get; set; } = TimeSpan.FromSeconds(1);
   public uint EmptyListenDelaysBeforeRecheck { get; set; } = 5;
 
-  public RsyncReader(
+  public RsyncStdOutReader(
     SshClient client,
     string copyFrom,
     string destination,
@@ -38,7 +62,7 @@ public sealed class RsyncReader : IAsyncDisposable
     _client = client;
 
     RunLabel = DateTime.Now.ToString("yyyyMMddHHmmss");
-    LogFilePath = $"$HOME/rsync.{RunLabel}.log";
+    LogFilePath = $"\"$HOME/rsync.{RunLabel}.log\"";
 
     _rsyncCommandText = $"sudo rsync {StdArgs} --log-file={LogFilePath} {copyFrom} {destination}";
 
