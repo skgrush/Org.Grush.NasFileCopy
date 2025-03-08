@@ -315,7 +315,7 @@ public sealed class RsyncLogReader : IAsyncDisposable
     if (!cmdLineResult.Success)
       throw new RsyncProcessNotFoundException($"Proc folder for {ProcessId} cmdline not found");
 
-    return cmdLineResult.Result.Value.contents.Trim('\n').Split('\0');
+    return cmdLineResult.Result.Item1.Trim('\n').Split('\0');
   }
 
   private async Task<ImmutableDictionary<string, string>> ReadStatsForProcess(TrueNasSshClient client)
@@ -327,8 +327,8 @@ public sealed class RsyncLogReader : IAsyncDisposable
     if (!statusResult.Success)
       throw new RsyncProcessNotFoundException($"Proc folder for {ProcessId} status not found");
 
-    return statusResult.Result.Value
-        .contents
+    return statusResult.Result
+        .Item1
         .Split('\n')
         .Select(line => line.Split(":\t", 2))
         .Where(pair => pair.Length is 2)

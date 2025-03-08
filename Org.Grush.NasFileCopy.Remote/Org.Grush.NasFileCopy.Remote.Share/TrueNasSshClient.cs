@@ -86,8 +86,8 @@ internal sealed class TrueNasSshClient(
       cancellationToken: cancellationToken
     );
 
-  public async Task<SshResult<(string contents, object?)>> ReadFileAsync(string filePath, CancellationToken cancellationToken) =>
-    await CallCommand<(string, object?)>(
+  public async Task<SshResult<ValueTuple<string>>> ReadFileAsync(string filePath, CancellationToken cancellationToken) =>
+    await CallCommand<ValueTuple<string>>(
       preconditions: () =>
       {
         if (DangerousSingleQuoteChars.IsMatch(filePath) || filePath.Contains('$'))
@@ -97,7 +97,7 @@ internal sealed class TrueNasSshClient(
       handler: command =>
       {
         if (command.ExitStatus is 0)
-          return (null, true, (command.Result, null));
+          return (null, true, ValueTuple.Create(command.Result));
 
         analyticsReporter.LogError("cat exited with {status}", command.ExitStatus);
         return ($"cat exited unexpectedly with {command.ExitStatus}", false, null);
