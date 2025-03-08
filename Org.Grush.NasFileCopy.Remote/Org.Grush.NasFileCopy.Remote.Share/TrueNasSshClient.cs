@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Org.Grush.NasFileCopy.Remote.Share.Ssh;
@@ -16,6 +17,9 @@ public sealed class TrueNasSshClient(
   private static readonly Regex DangerousSingleQuoteChars = new("""[\\'\n]""");
 
   private SshClient? SshClient { get; set; }
+
+  public bool IsDisposed { get; private set; }
+  public bool IsConnected => SshClient?.IsConnected ?? false;
 
   public async Task ConnectAsync(
     ConnectionInfo sshCredentials,
@@ -67,21 +71,6 @@ public sealed class TrueNasSshClient(
       },
       cancellationToken: cancellationToken
     );
-
-  private string ProcessDoubleQuotePath(string path, string name)
-  {
-    if (DangerousShellQuoteChars.IsMatch(path))
-      throw new DangerousOperationException("contains dangerous characters.", name);
-    return path.Replace("~", "$HOME");
-  }
-
-  private string ProcessSingleQuotePath(string path, string name)
-  {
-    if (DangerousSingleQuoteChars.IsMatch(path))
-      throw new DangerousOperationException("cannot contain ' or \\ or $", name);
-    return path;
-  }
-
   public async Task<SshResult<bool>> MountDeviceAsync(string devPath, string destinationPath, CancellationToken cancellationToken) =>
     await CallCommand<bool>(
       preconditions: null,
@@ -142,6 +131,7 @@ public sealed class TrueNasSshClient(
 
   public async Task<SshResult<ImmutableArray<LsLine>>> LsVerboseAsync(string path, CancellationToken cancellationToken)
   {
+    // TODO fix ~
     path = path.Replace("~", "$HOME");
     return await CallCommand<ImmutableArray<LsLine>>(
       preconditions: () =>
@@ -167,6 +157,25 @@ public sealed class TrueNasSshClient(
     );
   }
 
+  public async Task<SshResult<LsblkDevice.LsblkResult>> LsblkAsync(CancellationToken cancellationToken)
+    => await CallCommand(
+      preconditions: null,
+      getCommand: () => $"lsblk {LsblkDevice.Options}",
+      handler: command =>
+      {
+        if (command.ExitStatus is 0)
+        {
+          var v = JsonSerializer.Deserialize(command.Result,
+            LsblkDeviceJsonSerializerContext.Default.LsblkResult);
+          return (null, true, v);
+        }
+
+        return ($"lsblk exited unexpectedly with {command.ExitStatus}", false, (LsblkDevice.LsblkResult?)null);
+      },
+      cancellationToken: cancellationToken
+    );
+
+
   public RsyncLogReader Rsync(
     string copyFrom,
     string destination,
@@ -188,15 +197,33 @@ public sealed class TrueNasSshClient(
     );
   }
 
-  public ValueTask DisposeAsync()
+  ValueTask IAsyncDisposable.DisposeAsync()
   {
     SshClient?.Dispose();
     SshClient = null;
+
+    IsDisposed = true;
 
     return default;
   }
 
 
+
+
+  private string ProcessDoubleQuotePath(string path, string name)
+  {
+    if (DangerousShellQuoteChars.IsMatch(path))
+      throw new DangerousOperationException("contains dangerous characters.", name);
+    // fix ~
+    return path.Replace("~", "$HOME");
+  }
+
+  private string ProcessSingleQuotePath(string path, string name)
+  {
+    if (DangerousSingleQuoteChars.IsMatch(path))
+      throw new DangerousOperationException("cannot contain ' or \\ or $", name);
+    return path;
+  }
 
   private async Task<SshResult<T>> CallCommand<T>(
     Action? preconditions,
