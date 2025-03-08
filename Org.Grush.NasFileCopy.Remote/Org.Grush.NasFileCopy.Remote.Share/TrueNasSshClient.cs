@@ -9,7 +9,7 @@ namespace Org.Grush.NasFileCopy.Remote.Share;
 
 public class DangerousOperationException(string message, string paramName) : ArgumentException(message, paramName);
 
-public sealed class TrueNasSshClient(
+internal sealed class TrueNasSshClient(
   IAnalyticsReporter analyticsReporter
 ) : IAsyncDisposable
 {
@@ -38,7 +38,7 @@ public sealed class TrueNasSshClient(
       handler: command =>
       {
         if (command.ExitStatus is 0)
-          return (null, true, null);
+          return (null, true, true);
 
         analyticsReporter.LogError("Unmount device exited with {status}", command.ExitStatus);
         return ($"Error: unmount device exit status {command.ExitStatus}", false, null);
