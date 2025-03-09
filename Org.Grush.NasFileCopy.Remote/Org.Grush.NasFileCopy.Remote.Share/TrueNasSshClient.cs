@@ -26,7 +26,20 @@ internal sealed class TrueNasSshClient(
     CancellationToken cancellationToken
   )
   {
+    if (SshClient is not null)
+      throw new InvalidOperationException("You already connected.");
+
     SshClient = new SshClient(sshCredentials);
+
+    await ReconnectIfNeededAsync(cancellationToken);
+  }
+
+  public async Task ReconnectIfNeededAsync(CancellationToken cancellationToken)
+  {
+    if (SshClient is null)
+      throw new InvalidOperationException("Connect to reconnect.");
+    if (SshClient.IsConnected)
+      return;
 
     await SshClient.ConnectAsync(cancellationToken);
   }
