@@ -198,7 +198,7 @@ internal sealed class TrueNasSshClient(
     if (SshClient?.IsConnected is not true)
       throw new InvalidOperationException("Connect first");
 
-    return await RsyncLogReader.NewAsync(
+    return await RsyncLogReader.CreateAndStartNewAsync(
       password: password,
       client: this,
       copyFrom: $"'{copyFrom}'",

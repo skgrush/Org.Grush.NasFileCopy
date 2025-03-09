@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
-using Renci.SshNet;
 
 namespace Org.Grush.NasFileCopy.Remote.Share.Ssh;
 
@@ -74,7 +74,7 @@ internal sealed class RsyncLogReader : IAsyncDisposable
   public string RunId { get; }
   public string LogFilePath { get; }
   public string LockFileBaseName { get; }
-  public State? CurrentState { get; private set; }
+  public RsyncLogState? CurrentState { get; private set; }
   public bool Completed => CurrentState?.CompletedSuccessfully is not null;
 
   public TimeSpan ListenDelay { get; set; } = TimeSpan.FromSeconds(1);
@@ -107,7 +107,7 @@ internal sealed class RsyncLogReader : IAsyncDisposable
   public static string RunIdToLogFileName(string runId) => $"rsync.{runId}.log";
   public static void ValidateRunId(string runId) => _ = DateTime.ParseExact(runId, RunIdDateFormat, null);
 
-  public static async Task<RsyncLogReader> NewAsync(
+  public static async Task<RsyncLogReader> CreateAndStartNewAsync(
     string password,
     TrueNasSshClient client,
     string copyFrom,
@@ -207,14 +207,19 @@ internal sealed class RsyncLogReader : IAsyncDisposable
     await CreateLockFileAsync();
   }
 
-  public async IAsyncEnumerable<State> ListenAsync(Func<string, Task> errorLogger)
+  public async IAsyncEnumerable<RsyncLogState> ListenAsync(Func<string, Task> errorLogger, [EnumeratorCancellation] CancellationToken cancellationToken)
   {
     var processIdFromLockFile = await ReadIdFromLockFileAsync();
 
     if (ProcessId != processIdFromLockFile)
       throw new RsyncException($"Mismatched pids: {ProcessId}|{processIdFromLockFile}");
 
-    var token = _cancellationTokenSource.Token;
+    using var scopedToken = new CancellationTokenSource();
+    var token = scopedToken.Token;
+
+    _cancellationTokenSource.Token.Register(scopedToken.Cancel);
+    cancellationToken.Register(scopedToken.Cancel);
+
     token.ThrowIfCancellationRequested();
 
     using var tailCommand = _client.SshClient!.CreateCommand($"tail --pid {ProcessId} -f \"{LogFilePath}\"");
@@ -252,7 +257,7 @@ internal sealed class RsyncLogReader : IAsyncDisposable
           if (tailCommand.ExitStatus is not null || executeTask.IsCompleted)
           {
             // unexpectedly, we started a new iteration with a closed command of some kind
-            State state = (CurrentState ?? State.Empty) with
+            RsyncLogState rsyncLogState = (CurrentState ?? RsyncLogState.Empty) with
               {
                 CompletedSuccessfully = tailCommand.ExitStatus switch
                 {
@@ -261,11 +266,11 @@ internal sealed class RsyncLogReader : IAsyncDisposable
                   _ => false,
                 }
               };
-            CurrentState = state;
-            if (state.CompletedSuccessfully is not null)
+            CurrentState = rsyncLogState;
+            if (rsyncLogState.CompletedSuccessfully is not null)
               await DeleteLockFileAsync();
 
-            yield return state;
+            yield return rsyncLogState;
             yield break;
           }
 
@@ -285,27 +290,27 @@ internal sealed class RsyncLogReader : IAsyncDisposable
           {
             var fileBytes = ulong.Parse(logMatch.Groups["fileBytes"].Value);
             var total = (CurrentState?.TotalKnownBytesTransmitted ?? 0) + fileBytes;
-            State state = new(
+            RsyncLogState rsyncLogState = new(
               LatestTransmittedFile: logMatch.Groups["fileName"].Value,
               TotalKnownBytesTransmitted: total,
               LatestTransmittedFileBytes: fileBytes,
               CompletedSuccessfully: null
             );
-            CurrentState = state;
-            yield return state;
+            CurrentState = rsyncLogState;
+            yield return rsyncLogState;
           }
           else if (FinalLogRe.Match(lineContents) is { Success: true } finalLogMatch)
           {
-            State state = new(
+            RsyncLogState rsyncLogState = new(
               LatestTransmittedFile: "",
               LatestTransmittedFileBytes: ulong.Parse(finalLogMatch.Groups["total"].Value),
               TotalKnownBytesTransmitted: CurrentState?.TotalKnownBytesTransmitted ?? 0,
               CompletedSuccessfully: true
             );
-            CurrentState = state;
+            CurrentState = rsyncLogState;
             await DeleteLockFileAsync();
 
-            yield return state;
+            yield return rsyncLogState;
             yield break;
           }
           else if (MetaLogRe.Match(lineContents) is { Success: true } metaLogMatch)
@@ -445,28 +450,28 @@ internal sealed class RsyncLogReader : IAsyncDisposable
     ];
   }
 
-  public static async Task<ImmutableDictionary<string, (string runId, bool ended, LsLine)>> GetExistingRuns(TrueNasSshClient client, TrueNasSshClient tnSshClient, CancellationToken cancellationToken)
+  public static async Task<ImmutableArray<(string runId, bool ended, LsLine line)>> GetExistingRunsAsync(TrueNasSshClient client, CancellationToken cancellationToken)
   {
-    var lockFiles = await GetExistingLockFilesAsync(tnSshClient, cancellationToken: cancellationToken);
+    var lockFiles = await GetExistingLockFilesAsync(client, cancellationToken: cancellationToken);
 
-    Dictionary<string, (string runId, bool ended, LsLine)> runs = [];
+    List<(string runId, bool ended, LsLine line)> runs = new(lockFiles.Length);
     foreach (var (runId, lsLine) in lockFiles)
     {
       var procId = await ReadProcessIdFromLockFileGivenAsync(runId, client, cancellationToken);
       bool ended = false;
       try
       {
-        await ReadCmdlineForGivenProcess(tnSshClient, procId, cancellationToken);
+        await ReadCmdlineForGivenProcess(client, procId, cancellationToken);
       }
       catch (RsyncProcessNotFoundException)
       {
         // await DeleteLockFileAsync(client, runId, cancellationToken);
         ended = true;
       }
-      runs.Add(runId, (runId, ended, lsLine));
+      runs.Add((runId, ended, lsLine));
     }
 
-    return runs.ToImmutableDictionary();
+    return [..runs];
   }
 
   ValueTask IAsyncDisposable.DisposeAsync()
@@ -485,20 +490,21 @@ internal sealed class RsyncLogReader : IAsyncDisposable
   public class RsyncCommandFailedException(byte exitCode, string? message)
     : RsyncException($"rsync exited with {exitCode}{(message is null ? "" : $"; {message}")}");
 
-  /// <summary>Rsync state.</summary>
-  /// <param name="LatestTransmittedFile">Name of the latest transmitted file, <c>""</c> if complete, or <c>null</c> if no file emitted.</param>
-  /// <param name="LatestTransmittedFileBytes">Size the latest file in bytes, or final transmitted bytes if complete.</param>
-  /// <param name="TotalKnownBytesTransmitted">Total known bytes transmitted.</param>
-  /// <param name="CompletedSuccessfully"><c>null</c> when incomplete, else <c>true</c> or <c>false</c> for successful completion.</param>
-  public readonly record struct State(
-    string? LatestTransmittedFile,
-    ulong LatestTransmittedFileBytes,
-    ulong TotalKnownBytesTransmitted,
-    bool? CompletedSuccessfully
-  )
-  {
-    internal static readonly State Empty = new(null, 0, 0, null);
-  }
-
   #endregion
+}
+
+
+/// <summary>Rsync state.</summary>
+/// <param name="LatestTransmittedFile">Name of the latest transmitted file, <c>""</c> if complete, or <c>null</c> if no file emitted.</param>
+/// <param name="LatestTransmittedFileBytes">Size the latest file in bytes, or final transmitted bytes if complete.</param>
+/// <param name="TotalKnownBytesTransmitted">Total known bytes transmitted.</param>
+/// <param name="CompletedSuccessfully"><c>null</c> when incomplete, else <c>true</c> or <c>false</c> for successful completion.</param>
+public readonly record struct RsyncLogState(
+  string? LatestTransmittedFile,
+  ulong LatestTransmittedFileBytes,
+  ulong TotalKnownBytesTransmitted,
+  bool? CompletedSuccessfully
+)
+{
+  internal static readonly RsyncLogState Empty = new(null, 0, 0, null);
 }
