@@ -2,6 +2,8 @@ using System.Collections.Immutable;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization.Metadata;
 using System.Text.RegularExpressions;
 using Org.Grush.NasFileCopy.Remote.Share.Structures;
 using Org.Grush.NasFileCopy.Remote.Share.Structures.Enums;
@@ -60,7 +62,7 @@ public sealed class TrueNasHttpClient : IAsyncDisposable
     {
       await PingAsync(cancellationToken);
     }
-    catch (Exception e)
+    catch (Exception)
     {
       _client.Dispose();
       _client = null;
@@ -97,7 +99,7 @@ public sealed class TrueNasHttpClient : IAsyncDisposable
   public async Task<string> CallAnyAsync(string urlString, CancellationToken cancellationToken)
   {
     var url = BuildUri(urlString);
-    if (!url.IsAbsoluteUri || !url.IsWellFormedOriginalString() || !url.AbsoluteUri.StartsWith(Host.AbsoluteUri))
+    if (!url.IsAbsoluteUri || !url.IsWellFormedOriginalString() || !url.AbsoluteUri.StartsWith(Host!.AbsoluteUri))
       throw new ArgumentException("Nyeh");
 
     using var response = await Client.GetAsync(url, cancellationToken).ConfigureAwait(true);
@@ -123,22 +125,32 @@ public sealed class TrueNasHttpClient : IAsyncDisposable
 
   public async Task<ImmutableArray<UserDto>> GetUsersAsync(CancellationToken cancellationToken)
   {
-    using var response = await GetWithBodyAsync(BuildUri("user"), new Dictionary<string, object>
-    {
-      {
-        "query-filters",
-        new[] {
-          new object[]
-          {
-            "builtin",
-            "=",
-            false
-          }
-        }
-      }
-    }, cancellationToken).ConfigureAwait(true);
 
-    var result = await ReadResponse<ImmutableArray<UserDto>>(response, cancellationToken).ConfigureAwait(true);
+    var request = new JsonObject
+    {
+      ["query-filters"] = new JsonArray
+      {
+        // Add<JsonValue>() does NOT require dynamic code refs
+#pragma warning disable IL2026
+#pragma warning disable IL3050
+        new JsonArray
+        {
+          JsonValue.Create("builtin"),
+          JsonValue.Create("="),
+          JsonValue.Create(false),
+        }
+#pragma warning restore IL3050
+#pragma warning restore IL2026
+      }
+    };
+
+    using var response = await GetWithBodyContentAsync(
+      BuildUri("user"),
+      request.ToJsonString(),
+      cancellationToken
+    ).ConfigureAwait(true);
+
+    var result = await ReadResponse(response, jsonTypeInfo: HttpJsonSerializerContext.Default.ImmutableArrayUserDto, cancellationToken).ConfigureAwait(true);
 
     return result;
   }
@@ -147,60 +159,100 @@ public sealed class TrueNasHttpClient : IAsyncDisposable
   {
     using var response = await Client.GetAsync(BuildUri("system/info"), cancellationToken);
 
-    return await ReadResponse<SystemInfoDto>(response, cancellationToken);
+    return await ReadResponse(response, jsonTypeInfo: HttpJsonSerializerContext.Default.SystemInfoDto, cancellationToken);
   }
 
   public async Task<SshSettingsDto> GetSshSettingsAsync(CancellationToken cancellationToken)
   {
     using var response = await Client.GetAsync(BuildUri("ssh"), cancellationToken);
 
-    return await ReadResponse<SshSettingsDto>(response, cancellationToken);
+    return await ReadResponse(response, jsonTypeInfo: HttpJsonSerializerContext.Default.SshSettingsDto, cancellationToken);
   }
 
   public async Task<ImmutableArray<PoolDatasetFilesystemDto>> GetDatasetsAsync(CancellationToken cancellationToken)
   {
     using var response = await Client.GetAsync(BuildUri("pool/dataset"), cancellationToken);
 
-    return await ReadResponse<ImmutableArray<PoolDatasetFilesystemDto>>(response, cancellationToken);
+    return await ReadResponse(response, jsonTypeInfo: HttpJsonSerializerContext.Default.ImmutableArrayPoolDatasetFilesystemDto, cancellationToken);
   }
 
   public async Task<ImmutableDictionary<string, DeviceInfoDto>> DeviceGetInfoAsync(DeviceType type, CancellationToken cancellationToken)
   {
-    using var response = await Client.PostAsJsonAsync(BuildUri("device/get_info"), value: type.ToString(), cancellationToken);
+    using var response = await Client.PostAsJsonAsync(
+      BuildUri("device/get_info"),
+      value: type.ToString(),
+      jsonTypeInfo: HttpJsonSerializerContext.Default.String,
+      cancellationToken
+    );
 
-    return await ReadResponse<ImmutableDictionary<string, DeviceInfoDto>>(response, cancellationToken);
+    return await ReadResponse(response, jsonTypeInfo: HttpJsonSerializerContext.Default.ImmutableDictionaryStringDeviceInfoDto, cancellationToken);
   }
 
   public async Task<FsStatDto> FsStatAsync(string path, CancellationToken cancellationToken)
   {
-    using var response = await Client.PostAsJsonAsync(BuildUri("filesystem/stat"), value: path, cancellationToken);
+    using var response = await Client.PostAsJsonAsync(
+      BuildUri("filesystem/stat"),
+      value: path,
+      jsonTypeInfo: HttpJsonSerializerContext.Default.String,
+      cancellationToken
+    );
 
-    return await ReadResponse<FsStatDto>(response, cancellationToken);
+    return await ReadResponse(response, jsonTypeInfo: HttpJsonSerializerContext.Default.FsStatDto, cancellationToken);
   }
 
   public async Task<ImmutableArray<FsListdirDto>> FsListdirAsync(string path, CancellationToken cancellationToken)
   {
-    using var response = await Client.PostAsJsonAsync(BuildUri("filesystem/listdir"), value: new FsListdirArg(path), cancellationToken);
+    using var response = await Client.PostAsJsonAsync(
+      requestUri: BuildUri("filesystem/listdir"),
+      value: new FsListdirArg(path),
+      jsonTypeInfo: HttpJsonSerializerContext.Default.FsListdirArg,
+      cancellationToken
+    );
 
-    return await ReadResponse<ImmutableArray<FsListdirDto>>(response, cancellationToken);
+    return await ReadResponse(
+      response,
+      jsonTypeInfo: HttpJsonSerializerContext.Default.ImmutableArrayFsListdirDto,
+      cancellationToken
+    );
   }
 
-  private record FsListdirArg(string Path);
+  public record FsListdirArg(string Path);
 
 
-  private async Task<T> ReadResponse<T>(HttpResponseMessage response, CancellationToken cancellationToken)
+  private async Task<T> ReadResponse<T>(
+    HttpResponseMessage response,
+    JsonTypeInfo<T> jsonTypeInfo,
+    CancellationToken cancellationToken
+  )
   {
     response.EnsureSuccessStatusCode();
 
     await using var content = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
 
-    return await JsonSerializer.DeserializeAsync<T>(content, options: StandardOptions, cancellationToken).ConfigureAwait(true);
+    return (await JsonSerializer.DeserializeAsync(content, jsonTypeInfo: jsonTypeInfo, cancellationToken).ConfigureAwait(true))!;
   }
 
-  private async Task<HttpResponseMessage> GetWithBodyAsync<TRequest>(Uri uri, TRequest requestBody, CancellationToken cancellationToken)
+  private async Task<HttpResponseMessage> GetWithBodyAsync<TRequest>(
+    Uri uri,
+    TRequest requestBody,
+    JsonTypeInfo<TRequest> jsonTypeInfo,
+    CancellationToken cancellationToken
+  )
   {
-    using StringContent content = new(JsonSerializer.Serialize(requestBody));
+    return await GetWithBodyContentAsync(
+      uri,
+      JsonSerializer.Serialize(requestBody, jsonTypeInfo: jsonTypeInfo),
+      cancellationToken
+    );
+  }
 
+  private async Task<HttpResponseMessage> GetWithBodyContentAsync(
+    Uri uri,
+    string stringBody,
+    CancellationToken cancellationToken
+  )
+  {
+    using StringContent content = new(stringBody);
     HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, uri)
     {
       Content = content,
@@ -208,11 +260,6 @@ public sealed class TrueNasHttpClient : IAsyncDisposable
 
     return await Client.SendAsync(request, cancellationToken).ConfigureAwait(true);
   }
-
-  private static readonly JsonSerializerOptions StandardOptions = new()
-  {
-    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-  };
 
   ValueTask IAsyncDisposable.DisposeAsync()
   {
