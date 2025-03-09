@@ -1,17 +1,5 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Grush.NasFileCopy.ServerSide", "Org.Grush.NasFileCopy.ServerSide\Org.Grush.NasFileCopy.ServerSide.csproj", "{AB7E372D-8B84-4091-A131-24E298E49781}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Org.Grush.NasFileCopy.ClientSide", "Org.Grush.NasFileCopy.ClientSide", "{0AB00784-42AB-458C-9533-EF1852621A4F}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Grush.NasFileCopy.ClientSide.Shared", "Org.Grush.NasFileCopy.ClientSide\Org.Grush.NasFileCopy.ClientSide.Shared\Org.Grush.NasFileCopy.ClientSide.Shared.csproj", "{82E37F8A-9522-420B-B955-DE053AFC0864}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Grush.NasFileCopy.Structures", "Org.Grush.NasFileCopy.Structures\Org.Grush.NasFileCopy.Structures.csproj", "{274BCD96-FC1F-4629-ADC7-96ED5A04D212}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Grush.NasFileCopy.ClientSide.Cli", "Org.Grush.NasFileCopy.ClientSide\Org.Grush.NasFileCopy.ClientSide.Cli\Org.Grush.NasFileCopy.ClientSide.Cli.csproj", "{FDB3220E-2F02-4D64-B429-8E3A92BE9CC0}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Grush.NasFileCopy.ClientSide.Maui", "Org.Grush.NasFileCopy.ClientSide\Org.Grush.NasFileCopy.ClientSide.Maui\Org.Grush.NasFileCopy.ClientSide.Maui.csproj", "{3E5789F4-53A3-48C0-BE0E-9D35641299BD}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Org.Grush.NasFileCopy.Remote", "Org.Grush.NasFileCopy.Remote", "{BAC11BC3-FCDD-43A7-AB1D-68E1D113D433}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Grush.NasFileCopy.Remote.Share", "Org.Grush.NasFileCopy.Remote\Org.Grush.NasFileCopy.Remote.Share\Org.Grush.NasFileCopy.Remote.Share.csproj", "{EF3F674B-C1CC-4820-8F3C-06CF9BD6943C}"
@@ -26,26 +14,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{AB7E372D-8B84-4091-A131-24E298E49781}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{AB7E372D-8B84-4091-A131-24E298E49781}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{AB7E372D-8B84-4091-A131-24E298E49781}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{AB7E372D-8B84-4091-A131-24E298E49781}.Release|Any CPU.Build.0 = Release|Any CPU
-		{82E37F8A-9522-420B-B955-DE053AFC0864}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{82E37F8A-9522-420B-B955-DE053AFC0864}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{82E37F8A-9522-420B-B955-DE053AFC0864}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{82E37F8A-9522-420B-B955-DE053AFC0864}.Release|Any CPU.Build.0 = Release|Any CPU
-		{274BCD96-FC1F-4629-ADC7-96ED5A04D212}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{274BCD96-FC1F-4629-ADC7-96ED5A04D212}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{274BCD96-FC1F-4629-ADC7-96ED5A04D212}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{274BCD96-FC1F-4629-ADC7-96ED5A04D212}.Release|Any CPU.Build.0 = Release|Any CPU
-		{FDB3220E-2F02-4D64-B429-8E3A92BE9CC0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{FDB3220E-2F02-4D64-B429-8E3A92BE9CC0}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{FDB3220E-2F02-4D64-B429-8E3A92BE9CC0}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{FDB3220E-2F02-4D64-B429-8E3A92BE9CC0}.Release|Any CPU.Build.0 = Release|Any CPU
-		{3E5789F4-53A3-48C0-BE0E-9D35641299BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{3E5789F4-53A3-48C0-BE0E-9D35641299BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{3E5789F4-53A3-48C0-BE0E-9D35641299BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{3E5789F4-53A3-48C0-BE0E-9D35641299BD}.Release|Any CPU.Build.0 = Release|Any CPU
 		{EF3F674B-C1CC-4820-8F3C-06CF9BD6943C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{EF3F674B-C1CC-4820-8F3C-06CF9BD6943C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EF3F674B-C1CC-4820-8F3C-06CF9BD6943C}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -60,9 +28,6 @@ Global
 		{F00F8E22-7248-4726-8136-5D63E425EE85}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{82E37F8A-9522-420B-B955-DE053AFC0864} = {0AB00784-42AB-458C-9533-EF1852621A4F}
-		{FDB3220E-2F02-4D64-B429-8E3A92BE9CC0} = {0AB00784-42AB-458C-9533-EF1852621A4F}
-		{3E5789F4-53A3-48C0-BE0E-9D35641299BD} = {0AB00784-42AB-458C-9533-EF1852621A4F}
 		{EF3F674B-C1CC-4820-8F3C-06CF9BD6943C} = {BAC11BC3-FCDD-43A7-AB1D-68E1D113D433}
 		{5D71723A-4F74-4F9F-84F0-0CEA6DFC6B9E} = {BAC11BC3-FCDD-43A7-AB1D-68E1D113D433}
 		{F00F8E22-7248-4726-8136-5D63E425EE85} = {BAC11BC3-FCDD-43A7-AB1D-68E1D113D433}
