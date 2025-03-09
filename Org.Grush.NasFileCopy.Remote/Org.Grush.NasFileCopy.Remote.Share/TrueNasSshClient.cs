@@ -16,7 +16,7 @@ internal sealed class TrueNasSshClient(
   private static readonly Regex DangerousShellQuoteChars = new("""[\\"\n]""");
   private static readonly Regex DangerousSingleQuoteChars = new("""[\\'\n]""");
 
-  private SshClient? SshClient { get; set; }
+  internal SshClient? SshClient { get; private set; }
 
   public bool IsDisposed { get; private set; }
   public bool IsConnected => SshClient?.IsConnected ?? false;
@@ -90,10 +90,10 @@ internal sealed class TrueNasSshClient(
     await CallCommand<ValueTuple<string>>(
       preconditions: () =>
       {
-        if (DangerousSingleQuoteChars.IsMatch(filePath) || filePath.Contains('$'))
+        if (DangerousShellQuoteChars.IsMatch(filePath))
           throw new DangerousOperationException("contains dangerous characters.", filePath);
       },
-      getCommand: () => $"cat '{filePath}'",
+      getCommand: () => $"cat \"{filePath}\"",
       handler: command =>
       {
         if (command.ExitStatus is 0)
@@ -105,6 +105,10 @@ internal sealed class TrueNasSshClient(
       cancellationToken: cancellationToken
     );
 
+  /// <summary>
+  /// Return a simple list of files/folders/etc in the directory <paramref name="path"/>.
+  /// Does not return <c>.</c> nor <c>..</c>.
+  /// </summary>
   public async Task<SshResult<ImmutableArray<string>>> LsAsync(string path, CancellationToken cancellationToken) =>
     await CallCommand<ImmutableArray<string>>(
       preconditions: () =>
@@ -129,6 +133,10 @@ internal sealed class TrueNasSshClient(
       cancellationToken: cancellationToken
     );
 
+  /// <summary>
+  /// Return the results of <c>ls -al</c> on the directory <paramref name="path"/>,
+  /// including <c>.</c> and <c>..</c>, with metadata about entries.
+  /// </summary>
   public async Task<SshResult<ImmutableArray<LsLine>>> LsVerboseAsync(string path, CancellationToken cancellationToken)
   {
     // TODO fix ~
@@ -176,7 +184,8 @@ internal sealed class TrueNasSshClient(
     );
 
 
-  public RsyncLogReader Rsync(
+  public async Task<RsyncLogReader> Rsync(
+    string password,
     string copyFrom,
     string destination,
     CancellationToken cancellationToken
@@ -189,8 +198,9 @@ internal sealed class TrueNasSshClient(
     if (SshClient?.IsConnected is not true)
       throw new InvalidOperationException("Connect first");
 
-    return new RsyncLogReader(
-      client: SshClient,
+    return await RsyncLogReader.NewAsync(
+      password: password,
+      client: this,
       copyFrom: $"'{copyFrom}'",
       destination: $"\"{destination}\"",
       cancellationToken: cancellationToken
