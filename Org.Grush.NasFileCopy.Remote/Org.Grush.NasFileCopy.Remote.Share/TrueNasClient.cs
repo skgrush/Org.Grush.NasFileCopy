@@ -7,7 +7,7 @@ namespace Org.Grush.NasFileCopy.Remote.Share;
 internal sealed class TrueNasClient(
   TrueNasSshClient sshClient,
   TrueNasHttpClient httpClient
-) : IAsyncDisposable
+) : ITrueNasClient
 {
   private readonly TrueNasSshClient _sshClient = sshClient;
   private readonly TrueNasHttpClient _httpClient = httpClient;
@@ -42,12 +42,7 @@ internal sealed class TrueNasClient(
         .ToImmutableArray();
     });
 
-  /// <summary>
-  /// Find mountable datasets mapped by human-readable name to mountpoint.
-  ///
-  /// If the API client is connected, we'll retrieve official TrueNas datasets.
-  /// If not, we will only return mountpoints that that start with <see cref="CheckedDatasetFolders"/>.
-  /// </summary>
+  /// <inheritdoc />
   public async Task<UiResult<ImmutableArray<(string Name, string Mountpoint)>>> GetSourceDatasets(CancellationToken cancellationToken)
   {
     if (IsHttpConnected)
@@ -93,10 +88,7 @@ internal sealed class TrueNasClient(
   public IAsyncEnumerable<RsyncLogState>? ListenToLocallyConnectedLog(string runId, Func<string, Task> errorLogger, CancellationToken cancellationToken)
     => RsyncLogReaders.GetValueOrDefault(runId)?.ListenAsync(errorLogger, cancellationToken);
 
-  /// <summary>
-  /// Load an already run/ning log-reader by its runId.
-  /// </summary>
-  /// <returns>if <paramref name="overwriteAndDisposeExisting"/> is true, will return <c>false</c> if we found it locally and didn't load remotely.</returns>
+  /// <inheritdoc />
   public Task<UiResult<bool>> LoadLogReaderAsync(string runId, bool overwriteAndDisposeExisting, CancellationToken cancellationToken)
     => UiResult.ExecuteAsync(async () =>
     {
