@@ -41,5 +41,18 @@ public record PoolDatasetFilesystemDto(
   ValueDto<long> Used,
   ValueDto<long> Available,
   bool Locked
-);
+)
+{
+  public IEnumerable<PoolDatasetFilesystemDto> DepthfirstRecurse()
+  {
+    yield return this;
+    foreach (var child in Children)
+    {
+      foreach (var outItem in child.DepthfirstRecurse())
+      {
+        yield return outItem;
+      }
+    }
+  }
+}
 

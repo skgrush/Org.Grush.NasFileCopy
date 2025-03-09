@@ -9,31 +9,38 @@ using Org.Grush.NasFileCopy.Remote.Share.Structures.Enums;
 namespace Org.Grush.NasFileCopy.Remote.Share;
 
 public class TrueNasHttpConnectionFailureException(
-  string Explanation,
-  HttpStatusCode StatusCode
-) : Exception($"Connection failure (code={StatusCode}): {Explanation}");
+  string explanation,
+  HttpStatusCode statusCode
+) : Exception($"Connection failure (code={statusCode}): {explanation}");
 
-public sealed class TrueNasHttpClient(
-  string rawHostname,
-  string username,
-  string password
-) : IAsyncDisposable
+public record TrueNasHttpCredentials(
+  string RawHostname,
+  string Username,
+  string Password
+);
+
+public sealed class TrueNasHttpClient : IAsyncDisposable
 {
   private static readonly Regex HostnameRe = new(@"^[a-z0-9_\-\.]+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
   private const string ApiVersion = "2.0";
-  private readonly Uri Host = new($"https://{rawHostname}/api/v{ApiVersion}/");
+
+  public bool IsHttpConnected => _client is not null;
 
   private HttpClient? _client;
-  public HttpClient Client
+
+  public Uri? Host { get; private set; }
+  private HttpClient Client
     => _client ?? throw new InvalidOperationException($"Not yet connected; call {nameof(ConnectAsync)}");
 
   public Uri BuildUri(string relativeUri)
-    => new(Host, relativeUri);
+    => new(Host!, relativeUri);
 
-  public async Task ConnectAsync(CancellationToken cancellationToken)
+  public async Task ConnectAsync(TrueNasHttpCredentials credentials, CancellationToken cancellationToken)
   {
-    if (!HostnameRe.IsMatch(rawHostname))
-      throw new InvalidOperationException($"Hostname is invalid, should only be a domain or IP address. Got: {rawHostname}");
+    if (!HostnameRe.IsMatch(credentials.RawHostname))
+      throw new InvalidOperationException($"Hostname is invalid, should only be a domain or IP address. Got: {credentials.RawHostname}");
+
+    Host = new($"https://{credentials.RawHostname}/api/v{ApiVersion}/");
 
     var handler = new HttpClientHandler
     {
@@ -45,17 +52,34 @@ public sealed class TrueNasHttpClient(
     _client = new HttpClient(handler);
     Client.DefaultRequestHeaders.Authorization = new(
       scheme: "Basic",
-      parameter: Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($"{username}:{password}"))
+      parameter: Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($"{credentials.Username}:{credentials.Password}"))
     );
     Client.DefaultRequestHeaders.Accept.Add(new("application/json"));
 
+    try
+    {
+      await PingAsync(cancellationToken);
+    }
+    catch (Exception e)
+    {
+      _client.Dispose();
+      _client = null;
+      throw;
+    }
+  }
+
+  private async Task PingAsync(CancellationToken cancellationToken)
+  {
     using var response = await Client.GetAsync(BuildUri("core/ping"), cancellationToken).ConfigureAwait(true);
+
     if (response.StatusCode is HttpStatusCode.Unauthorized)
-      throw new TrueNasHttpConnectionFailureException("User not found or lacks API permissions.", response.StatusCode);
+      throw new TrueNasHttpConnectionFailureException("User not found or lacks API permissions.",
+        response.StatusCode);
 
     var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(true);
     if (body is not "\"pong\"")
-      throw new TrueNasHttpConnectionFailureException($"Ping expected result \"pong\" but got '{body}'", response.StatusCode);
+      throw new TrueNasHttpConnectionFailureException($"Ping expected result \"pong\" but got '{body}'",
+        response.StatusCode);
   }
 
   public ImmutableArray<MulticastDelegate> ApiMethods =>
