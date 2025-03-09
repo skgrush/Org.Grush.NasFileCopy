@@ -32,15 +32,8 @@ internal sealed class TrueNasClient(
       await _sshClient.ReconnectIfNeededAsync(cancellationToken);
   }
 
-  public Task<UiResult<ImmutableArray<(string runId, bool ended, DateTime? started)>>> GetExistingRuns(CancellationToken cancellationToken) =>
-    UiResult.ExecuteAsync(async () =>
-    {
-      var runs = await RsyncLogReader.GetExistingRunsAsync(_sshClient, cancellationToken);
-
-      return runs
-        .Select(tuple => (tuple.runId, tuple.ended, tuple.line.Timestamp))
-        .ToImmutableArray();
-    });
+  public Task<UiResult<ImmutableArray<ExistingRun>>> GetExistingRuns(CancellationToken cancellationToken) =>
+    UiResult.ExecuteAsync(async () => await RsyncLogReader.GetExistingRunsAsync(_sshClient, cancellationToken));
 
   /// <inheritdoc />
   public async Task<UiResult<ImmutableArray<(string Name, string Mountpoint)>>> GetSourceDatasets(CancellationToken cancellationToken)

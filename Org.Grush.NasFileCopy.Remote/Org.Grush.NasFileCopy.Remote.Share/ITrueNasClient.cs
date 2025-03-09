@@ -10,7 +10,7 @@ public interface ITrueNasClient : IAsyncDisposable
   bool IsHttpConnected { get; }
   Task ConnectAsync(ConnectionInfo sshInfo, TrueNasHttpCredentials? httpCredentials, CancellationToken cancellationToken);
   Task ReconnectAsync(CancellationToken cancellationToken);
-  Task<UiResult<ImmutableArray<(string runId, bool ended, DateTime? started)>>> GetExistingRuns(CancellationToken cancellationToken);
+  Task<UiResult<ImmutableArray<ExistingRun>>> GetExistingRuns(CancellationToken cancellationToken);
 
   /// <summary>
   /// Find mountable datasets mapped by human-readable name to mountpoint.

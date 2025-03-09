@@ -66,7 +66,6 @@ internal sealed class RsyncLogReader : IAsyncDisposable
   private static readonly Regex MetaLogRe = new(@"^rsync[: ]+(?<meta>[^\n]+)$");
 
   private readonly TrueNasSshClient _client;
-  private readonly string _rsyncCommandText;
   private readonly CancellationTokenSource _cancellationTokenSource = new();
 
   private uint? ProcessId { get; set; }
@@ -74,6 +73,8 @@ internal sealed class RsyncLogReader : IAsyncDisposable
   public string RunId { get; }
   public string LogFilePath { get; }
   public string LockFileBaseName { get; }
+  public string CopyFrom { get; }
+  public string Destination { get; }
   public RsyncLogState? CurrentState { get; private set; }
   public bool Completed => CurrentState?.CompletedSuccessfully is not null;
 
@@ -97,7 +98,8 @@ internal sealed class RsyncLogReader : IAsyncDisposable
     LogFilePath = $"{RsyncLogDir}/{RunIdToLogFileName(RunId)}";
     LockFileBaseName = RunIdToLockFileName(RunId);
 
-    _rsyncCommandText = $"sudo -n rsync {StdArgs} --log-file=\"{LogFilePath}\" {copyFrom} {destination}";
+    CopyFrom = copyFrom;
+    Destination = destination;
 
     cancellationToken.Register(_cancellationTokenSource.Cancel);
   }
@@ -106,6 +108,8 @@ internal sealed class RsyncLogReader : IAsyncDisposable
   public static string RunIdToLockFileName(string runId) => $"rsync.{runId}.lock";
   public static string RunIdToLogFileName(string runId) => $"rsync.{runId}.log";
   public static void ValidateRunId(string runId) => _ = DateTime.ParseExact(runId, RunIdDateFormat, null);
+
+  public string GetCommandText() => $"sudo -n rsync {StdArgs} --log-file=\"{LogFilePath}\" {CopyFrom} {Destination}";
 
   public static async Task<RsyncLogReader> CreateAndStartNewAsync(
     string password,
@@ -143,12 +147,15 @@ internal sealed class RsyncLogReader : IAsyncDisposable
     CancellationToken cancellationToken
   )
   {
-    var runIdToProcessId = await ReadProcessIdFromLockFileGivenAsync(runId, sshClient, cancellationToken);
+    var lockFile = await ReadFromLockFileGivenAsync(runId, sshClient, cancellationToken);
 
-    var commandArgs = await ReadCmdlineForGivenProcess(sshClient, runIdToProcessId, cancellationToken);
+    var commandArgs = await ReadCmdlineForGivenProcess(sshClient, lockFile.processId, cancellationToken);
 
     if (ParseCommandLineArgs(commandArgs) is not (string copyFrom, string destination, _))
-      throw new RsyncProcessNotFoundException($"{nameof(PickUpExistingAsync)} found PID={runIdToProcessId} for runId={runId}, but it didn't match the commands expected: {string.Join('\t', commandArgs)}");
+      throw new RsyncProcessNotFoundException($"{nameof(PickUpExistingAsync)} found PID={lockFile.processId} for runId={runId}, but it wasn't one of our rsync runs: {string.Join('\t', commandArgs)}");
+
+    if (copyFrom != lockFile.copyFrom || destination != lockFile.destination)
+      throw new RsyncProcessNotFoundException($"{nameof(PickUpExistingAsync)} found PID={lockFile.processId} for runId={runId}, and it was one of our rsync runs, but not the same copyFrom/destination: {string.Join('\t', commandArgs)}");
 
     var @this = new RsyncLogReader(
       runId: runId,
@@ -157,7 +164,7 @@ internal sealed class RsyncLogReader : IAsyncDisposable
       $"\"{destination}\"",
       cancellationToken
     );
-    @this.ProcessId = runIdToProcessId;
+    @this.ProcessId = lockFile.processId;
 
     return @this;
   }
@@ -190,7 +197,7 @@ internal sealed class RsyncLogReader : IAsyncDisposable
         throw new RsyncException("Password or permission refused");
     }
 
-    using var cmd = _client.SshClient!.RunCommand($"{_rsyncCommandText} & ; echo \"{IdFinderOutput}\"");
+    using var cmd = _client.SshClient!.RunCommand($"{GetCommandText()} & ; echo \"{IdFinderOutput}\"");
 
     await cmd.ExecuteAsync(cancellationToken: token);
 
@@ -209,7 +216,7 @@ internal sealed class RsyncLogReader : IAsyncDisposable
 
   public async IAsyncEnumerable<RsyncLogState> ListenAsync(Func<string, Task> errorLogger, [EnumeratorCancellation] CancellationToken cancellationToken)
   {
-    var processIdFromLockFile = await ReadIdFromLockFileAsync();
+    var (processIdFromLockFile, _, _) = await ReadFromLockFileAsync();
 
     if (ProcessId != processIdFromLockFile)
       throw new RsyncException($"Mismatched pids: {ProcessId}|{processIdFromLockFile}");
@@ -330,23 +337,32 @@ internal sealed class RsyncLogReader : IAsyncDisposable
     }
   }
 
-  private async Task<uint> ReadIdFromLockFileAsync()
-    => await ReadProcessIdFromLockFileGivenAsync(RunId, _client, _cancellationTokenSource.Token);
+  private async Task<(uint processId, string copyFrom, string destination)> ReadFromLockFileAsync()
+    => await ReadFromLockFileGivenAsync(RunId, _client, _cancellationTokenSource.Token);
 
-  public static async Task<uint> ReadProcessIdFromLockFileGivenAsync(string runId, TrueNasSshClient client, CancellationToken cancellationToken)
+  /// <summary>
+  /// Read the contents of one of our lockfiles.
+  /// </summary>
+  /// <returns>tuple read from the lock file.</returns>
+  /// <exception cref="RsyncException">If the lockfile is not found or is not valid.</exception>
+  public static async Task<(uint processId, string copyFrom, string destination)> ReadFromLockFileGivenAsync(string runId, TrueNasSshClient client, CancellationToken cancellationToken)
   {
     // validate runId
     ValidateRunId(runId);
 
-    var quotedLockFilePath = $"\"{RsyncLogDir}/{RunIdToLockFileName(runId)}\"";
-
-
     var lockFileResult = await client.ReadFileAsync($"{RsyncLogDir}/{RunIdToLockFileName(runId)}", cancellationToken: cancellationToken);
 
     if (lockFileResult.Success)
-      throw new RsyncException($"Failed to {nameof(ReadIdFromLockFileAsync)} for {runId}");
+      throw new RsyncException($"Failed to {nameof(ReadFromLockFileGivenAsync)} for {runId}");
 
-    return uint.Parse(lockFileResult.Result.Item1.Trim());
+    if (lockFileResult.Result.Item1.Split('\n', StringSplitOptions.RemoveEmptyEntries) is not [string pid, string copyFrom, string destination])
+      throw new RsyncException(
+        $"Failed to parse lockfile in {nameof(ReadFromLockFileGivenAsync)} for {runId}: {lockFileResult.Result.Item1}");
+    return (
+      processId: uint.Parse(pid),
+      copyFrom: copyFrom,
+      destination: destination
+    );
   }
 
   private async Task CreateLockFileAsync()
@@ -366,7 +382,13 @@ internal sealed class RsyncLogReader : IAsyncDisposable
           $"Lock file {quotedLockFilePath} already exists in {nameof(RsyncLogDir)} while attempting to {nameof(CreateLockFileAsync)}");
     }
 
-    using var createCmd = _client.SshClient!.CreateCommand($"echo {ProcessId.Value} >{quotedLockFilePath}");
+    string lockFileContents = $"""
+      {ProcessId.Value}
+      {CopyFrom}
+      {Destination}
+      """;
+
+    using var createCmd = _client.SshClient!.CreateCommand($"echo \"{lockFileContents}\" >{quotedLockFilePath}");
     await createCmd.ExecuteAsync(cancellationToken: token);
 
     if (createCmd.ExitStatus is not 0)
@@ -417,14 +439,23 @@ internal sealed class RsyncLogReader : IAsyncDisposable
   /// <returns></returns>
   /// <exception cref="RsyncException"></exception>
   /// <exception cref="RsyncProcessNotFoundException"></exception>
-  public async Task<ImmutableDictionary<string, string>> ReadStatsForProcess(TrueNasSshClient client)
+  private async Task<ImmutableDictionary<string, string>> ReadStatsForProcess(TrueNasSshClient client)
   {
-    if (!ProcessId.HasValue)
+    if (ProcessId is not uint processId)
       throw new RsyncException("ProcessId not yet");
 
-    var statusResult = await client.ReadFileAsync($"/proc/{ProcessId}/status", cancellationToken: _cancellationTokenSource.Token);
+    return await ReadStatsForProcess(client, processId, _cancellationTokenSource.Token);
+  }
+
+  /// <summary>
+  /// Read all the stats from the <c>/proc/{PID}/status</c> file for the given process as a dictionary.
+  /// </summary>
+  /// <exception cref="RsyncProcessNotFoundException">If the file cannot be read.</exception>
+  private static async Task<ImmutableDictionary<string, string>> ReadStatsForProcess(TrueNasSshClient client, uint pid, CancellationToken cancellationToken)
+  {
+    var statusResult = await client.ReadFileAsync($"/proc/{pid}/status", cancellationToken: cancellationToken);
     if (!statusResult.Success)
-      throw new RsyncProcessNotFoundException($"Proc folder for {ProcessId} status not found");
+      throw new RsyncProcessNotFoundException($"Proc folder for {pid} status not found");
 
     return statusResult.Result
         .Item1
@@ -434,13 +465,13 @@ internal sealed class RsyncLogReader : IAsyncDisposable
         .ToImmutableDictionary(pair => pair[0], pair => pair[1]);
   }
 
-  public static async Task<ImmutableArray<(string runId, LsLine)>> GetExistingLockFilesAsync(TrueNasSshClient client, CancellationToken cancellationToken)
+  public static async Task<ImmutableArray<(string runId, LsLine)>> GetExistingLockFileNamesAsync(TrueNasSshClient client, CancellationToken cancellationToken)
   {
     var quotedLockFileDir = $"\"{RsyncLogDir}/\"";
 
     var list = await client.LsVerboseAsync(quotedLockFileDir, cancellationToken: cancellationToken);
 
-    if (list.ExitStatus >= 1)
+    if (list.ExitStatus > 0)
       return []; // the log dir doesn't even exist
 
     return [
@@ -450,25 +481,29 @@ internal sealed class RsyncLogReader : IAsyncDisposable
     ];
   }
 
-  public static async Task<ImmutableArray<(string runId, bool ended, LsLine line)>> GetExistingRunsAsync(TrueNasSshClient client, CancellationToken cancellationToken)
+  public static async Task<ImmutableArray<ExistingRun>> GetExistingRunsAsync(TrueNasSshClient client, CancellationToken cancellationToken)
   {
-    var lockFiles = await GetExistingLockFilesAsync(client, cancellationToken: cancellationToken);
+    var lockFiles = await GetExistingLockFileNamesAsync(client, cancellationToken: cancellationToken);
 
-    List<(string runId, bool ended, LsLine line)> runs = new(lockFiles.Length);
+    List<ExistingRun> runs = new(lockFiles.Length);
     foreach (var (runId, lsLine) in lockFiles)
     {
-      var procId = await ReadProcessIdFromLockFileGivenAsync(runId, client, cancellationToken);
-      bool ended = false;
+      string? copyFrom = null;
+      string? destination = null;
+      string? processState = null;
       try
       {
-        await ReadCmdlineForGivenProcess(client, procId, cancellationToken);
+        (var procId, copyFrom, destination) = await ReadFromLockFileGivenAsync(runId, client, cancellationToken);
+
+        var stats = await ReadStatsForProcess(client, procId, cancellationToken);
+
+        processState = stats.GetValueOrDefault("State", "[Found]");
       }
-      catch (RsyncProcessNotFoundException)
+      catch (RsyncException)
       {
-        // await DeleteLockFileAsync(client, runId, cancellationToken);
-        ended = true;
       }
-      runs.Add((runId, ended, lsLine));
+
+      runs.Add(new (RunId: runId, ProcessState: processState, CopyFrom: copyFrom, Destination: destination, Line: lsLine));
     }
 
     return [..runs];
@@ -492,6 +527,25 @@ internal sealed class RsyncLogReader : IAsyncDisposable
 
   #endregion
 }
+
+
+
+
+/// <param name="RunId">The <see cref="RsyncLogReader.RunId"/> of the run.</param>
+/// <param name="ProcessState">
+/// State read from the process's status file, as described in <a href="https://man7.org/linux/man-pages/man5/proc_pid_status.5.html">man proc_pid_status</a> <c>Status</c>.
+/// <c>null</c> if process couldn't be found or lockfile not read.
+/// </param>
+/// <param name="CopyFrom">The <see cref="RsyncLogReader.CopyFrom"/> of the run from the lockfile.</param>
+/// <param name="Destination">The <see cref="RsyncLogReader.Destination"/> of the run from the lockfile.</param>
+/// <param name="Line">The <see cref="LsLine"/> of the lockfile.</param>
+public readonly record struct ExistingRun(
+  string RunId,
+  string? ProcessState,
+  string? CopyFrom,
+  string? Destination,
+  LsLine Line
+);
 
 
 /// <summary>Rsync state.</summary>
