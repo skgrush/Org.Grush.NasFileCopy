@@ -18,6 +18,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Grush.NasFileCopy.Remot
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Grush.NasFileCopy.Remote.Cli", "Org.Grush.NasFileCopy.Remote\Org.Grush.NasFileCopy.Remote.Cli\Org.Grush.NasFileCopy.Remote.Cli.csproj", "{5D71723A-4F74-4F9F-84F0-0CEA6DFC6B9E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Org.Grush.NasFileCopy.Remote.Ui", "Org.Grush.NasFileCopy.Remote\Org.Grush.NasFileCopy.Remote.Ui\Org.Grush.NasFileCopy.Remote.Ui.csproj", "{F00F8E22-7248-4726-8136-5D63E425EE85}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -52,6 +54,10 @@ Global
 		{5D71723A-4F74-4F9F-84F0-0CEA6DFC6B9E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5D71723A-4F74-4F9F-84F0-0CEA6DFC6B9E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5D71723A-4F74-4F9F-84F0-0CEA6DFC6B9E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F00F8E22-7248-4726-8136-5D63E425EE85}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F00F8E22-7248-4726-8136-5D63E425EE85}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F00F8E22-7248-4726-8136-5D63E425EE85}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F00F8E22-7248-4726-8136-5D63E425EE85}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{82E37F8A-9522-420B-B955-DE053AFC0864} = {0AB00784-42AB-458C-9533-EF1852621A4F}
@@ -59,5 +65,6 @@ Global
 		{3E5789F4-53A3-48C0-BE0E-9D35641299BD} = {0AB00784-42AB-458C-9533-EF1852621A4F}
 		{EF3F674B-C1CC-4820-8F3C-06CF9BD6943C} = {BAC11BC3-FCDD-43A7-AB1D-68E1D113D433}
 		{5D71723A-4F74-4F9F-84F0-0CEA6DFC6B9E} = {BAC11BC3-FCDD-43A7-AB1D-68E1D113D433}
+		{F00F8E22-7248-4726-8136-5D63E425EE85} = {BAC11BC3-FCDD-43A7-AB1D-68E1D113D433}
 	EndGlobalSection
 EndGlobal

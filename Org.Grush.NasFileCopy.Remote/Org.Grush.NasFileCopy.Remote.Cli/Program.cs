@@ -17,9 +17,9 @@ Console.WriteLine();
 
 var cancellationToken = CancellationToken.None;
 
-await using var client = new TrueNasHttpClient(hostname, username, password);
+await using var client = new TrueNasHttpClient();
 
-await client.ConnectAsync(cancellationToken);
+await client.ConnectAsync(new TrueNasHttpCredentials(hostname, username, password), cancellationToken);
 
 var cmds = client.ApiMethods
   .ToImmutableDictionary(
