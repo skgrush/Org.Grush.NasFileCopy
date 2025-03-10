@@ -33,7 +33,9 @@ public partial class ControlBar : ContentView
 
   private void ConfigBtn_OnClicked(object? sender, EventArgs e)
   {
-    throw new NotImplementedException();
+    var configPage = Handler?.MauiContext?.Services.GetService<ConfigurationModal>();
+
+    Navigation.PushModalAsync(configPage).ConfigureAwait(ConfigureAwaitOptions.None);
   }
 
   private void RefreshBtn_OnClicked(object? sender, EventArgs e)

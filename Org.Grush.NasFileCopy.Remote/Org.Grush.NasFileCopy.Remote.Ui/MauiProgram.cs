@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using Org.Grush.NasFileCopy.Remote.Share;
+using Org.Grush.NasFileCopy.Remote.Ui.Components;
 using Org.Grush.NasFileCopy.Remote.Ui.DiTokens;
 using Org.Grush.NasFileCopy.Remote.Ui.Services;
 
@@ -24,6 +25,7 @@ public static class MauiProgram
       .AddNasFileCopy()
       .AddSingleton(_ => new ExeDirectory(new(AppDomain.CurrentDomain.BaseDirectory)))
       .AddSingleton<ConnectionService>()
+      .AddSingleton<ConfigurationModal>()
     ;
 
     if (useFileStorage)
