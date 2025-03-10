@@ -32,6 +32,12 @@ internal sealed class TrueNasClient(
       await _sshClient.ReconnectIfNeededAsync(cancellationToken);
   }
 
+  public void Disconnect()
+  {
+    if (_sshClient.IsConnected)
+      _sshClient.Disconnect();
+  }
+
   public Task<UiResult<ImmutableArray<ExistingRun>>> GetExistingRuns(CancellationToken cancellationToken) =>
     UiResult.ExecuteAsync(async () => await RsyncLogReader.GetExistingRunsAsync(_sshClient, cancellationToken));
 

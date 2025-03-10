@@ -34,6 +34,11 @@ internal sealed class TrueNasSshClient(
     await ReconnectIfNeededAsync(cancellationToken);
   }
 
+  public void Disconnect()
+  {
+    SshClient?.Disconnect();
+  }
+
   public async Task ReconnectIfNeededAsync(CancellationToken cancellationToken)
   {
     if (SshClient is null)

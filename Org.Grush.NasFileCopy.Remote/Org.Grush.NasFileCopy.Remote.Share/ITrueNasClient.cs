@@ -10,6 +10,7 @@ public interface ITrueNasClient : IAsyncDisposable
   bool IsHttpConnected { get; }
   Task ConnectAsync(ConnectionInfo sshInfo, TrueNasHttpCredentials? httpCredentials, CancellationToken cancellationToken);
   Task ReconnectAsync(CancellationToken cancellationToken);
+  void Disconnect();
   Task<UiResult<ImmutableArray<ExistingRun>>> GetExistingRuns(CancellationToken cancellationToken);
 
   /// <summary>
