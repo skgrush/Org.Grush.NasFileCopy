@@ -21,7 +21,7 @@ public record TrueNasHttpCredentials(
   string Password
 );
 
-public sealed class TrueNasHttpClient : IAsyncDisposable
+internal sealed class TrueNasHttpClient : IAsyncDisposable
 {
   private static readonly Regex HostnameRe = new(@"^[a-z0-9_\-\.]+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
   private const string ApiVersion = "2.0";
