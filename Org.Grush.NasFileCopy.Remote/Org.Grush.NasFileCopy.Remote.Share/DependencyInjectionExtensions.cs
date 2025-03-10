@@ -9,5 +9,6 @@ public static class DependencyInjectionExtensions
       .AddSingleton<ITrueNasClient, TrueNasClient>()
       .AddSingleton<TrueNasSshClient>()
       .AddSingleton<TrueNasHttpClient>()
+      .AddSingleton<IAnalyticsReporter, AnalyticsReporter>()
     ;
 }

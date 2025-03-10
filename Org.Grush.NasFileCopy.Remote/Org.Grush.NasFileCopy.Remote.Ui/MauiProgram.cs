@@ -23,6 +23,7 @@ public static class MauiProgram
     builder.Services
       .AddNasFileCopy()
       .AddSingleton(_ => new ExeDirectory(new(AppDomain.CurrentDomain.BaseDirectory)))
+      .AddSingleton<ConnectionService>()
     ;
 
     if (useFileStorage)

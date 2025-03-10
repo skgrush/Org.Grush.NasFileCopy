@@ -13,4 +13,4 @@ namespace Org.Grush.NasFileCopy.Remote.Share.Structures;
 [JsonSerializable(typeof(ImmutableArray<PoolDatasetFilesystemDto>))]
 [JsonSerializable(typeof(TrueNasHttpClient.FsListdirArg))]
 [JsonSerializable(typeof(ImmutableDictionary<string, DeviceInfoDto>))]
-public partial class HttpJsonSerializerContext : JsonSerializerContext;
+internal partial class HttpJsonSerializerContext : JsonSerializerContext;
