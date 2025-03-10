@@ -25,6 +25,11 @@ public static class MauiProgram
       .AddSingleton(_ => new ExeDirectory(new(AppDomain.CurrentDomain.BaseDirectory)))
     ;
 
+    if (useFileStorage)
+      builder.Services.AddSingleton<IStorageService, FileStorageService>();
+    else
+      throw new NotImplementedException();
+
 #if DEBUG
     builder.Logging.AddDebug();
 #endif
