@@ -13,11 +13,12 @@ public record ConnectionConfig(
   PrivateKeyFile? PrivateKeyFile
 );
 
-
 internal class ConnectionService
 {
   private readonly ITrueNasClient _trueNasClient;
   private readonly IStorageService _storageService;
+  private readonly IPopUpService _popUpService;
+
 
   public ConnectionConfig Config { get; private set; } = new(
     IsConnected: false,
@@ -31,11 +32,13 @@ internal class ConnectionService
 
   public ConnectionService(
     ITrueNasClient trueNasClient,
-    IStorageService storageService
+    IStorageService storageService,
+    IPopUpService popUpService
   )
   {
     _trueNasClient = trueNasClient;
     _storageService = storageService;
+    _popUpService = popUpService;
 
     _storageService.ConfigChanged += StorageConfigChanged;
   }
@@ -67,29 +70,43 @@ internal class ConnectionService
     }).ConfigureAwait(true);
   }
 
-  private void StorageConfigChanged(object? sender, (StorageConfig?, StorageConfig) tuple)
+  private async void StorageConfigChanged(object? sender, (StorageConfig?, StorageConfig) tuple)
   {
     var (previousStorageConfig, newStorageConfig) = tuple;
 
+    await Handle(previousStorageConfig, newStorageConfig);
+  }
+
+  private async Task Handle(StorageConfig? previousStorageConfig, StorageConfig newStorageConfig)
+  {
     var newConnectionConfig = Config;
     var oldConnectionConfig = Config;
 
     try
     {
-      if (previousStorageConfig?.PrivateKey != newStorageConfig.PrivateKey)
+      if (previousStorageConfig != newStorageConfig)
       {
         PrivateKeyFile? privateKeyFile = null;
         if (newStorageConfig.PrivateKey is not null)
         {
           using var stream = new MemoryStream(Encoding.UTF8.GetBytes(newStorageConfig.PrivateKey));
 
-          privateKeyFile = new PrivateKeyFile(stream);
+          string? passphrase = null;
+          if (newStorageConfig.PrivateKeyHasPassphrase)
+          {
+            passphrase = await _popUpService.DisplayPromptAsync(
+              title: "Private key passphrase",
+              message: "Enter passphrase for private key"
+            );
+          }
+
+          privateKeyFile = new PrivateKeyFile(stream, passphrase);
         }
 
-        // only rebuild the connectionInfo if there already was one AND we have ALL the necessary stuff
+        // only rebuild the connectionInfo if we have ALL the necessary stuff
         var connectionInfo = (
           privateKeyFile is not null &&
-          oldConnectionConfig is { ConnectionInfo: not null } &&
+          // oldConnectionConfig is { ConnectionInfo: not null } &&
           newStorageConfig is { Username: { } username, Hostname: { } hostname }
         )
           ? new PrivateKeyConnectionInfo(host: hostname, username: username, privateKeyFile)
@@ -100,6 +117,8 @@ internal class ConnectionService
           IsConnected = false,
           ConnectionInfo = connectionInfo,
           PrivateKeyFile = privateKeyFile,
+          Hostname = newStorageConfig.Hostname,
+          Username = newStorageConfig.Username,
         };
       }
     }

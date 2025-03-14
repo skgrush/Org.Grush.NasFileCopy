@@ -29,8 +29,14 @@
 
         <VerticalStackLayout HorizontalOptions="Fill">
           <Editor
-            x:Name="PrivateKeyEntry"
+            x:Name="PrivateKeyEditor"
+            MaximumHeightRequest="50"
           />
+
+          <HorizontalStackLayout VerticalOptions="Center">
+            <CheckBox x:Name="PrivateKeyHasPassphraseCheckbox" />
+            <Label VerticalTextAlignment="Center">Private key has passphrase?</Label>
+          </HorizontalStackLayout>
         </VerticalStackLayout>
 
         <HorizontalStackLayout>

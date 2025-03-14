@@ -19,7 +19,8 @@ public interface IStorageService
 public record StorageConfig(
   string? Hostname = null,
   string? Username = null,
-  string? PrivateKey = null
+  string? PrivateKey = null,
+  bool PrivateKeyHasPassphrase = false
 )
 {
   public static readonly StorageConfig Default = new();

@@ -34,10 +34,15 @@ public static class MauiProgram
     var exeDir = new ExeDirectory(new(AppDomain.CurrentDomain.BaseDirectory));
 
     builder.Services
+      .AddTransient<MainPage>()
+      .AddTransient<ConfigurationModal>()
+    ;
+
+    builder.Services
       .AddNasFileCopy()
       .AddSingleton(exeDir)
       .AddSingleton<ConnectionService>()
-      .AddTransient<ConfigurationModal>()
+      .AddSingleton<IPopUpService, PopUpService>()
     ;
 
     if (ProtectivePlatforms.Contains(DeviceInfo.Platform))

@@ -22,7 +22,8 @@ public partial class ConfigurationModal : ContentPage
   {
     HostnameEntry.Text = config.Hostname ?? "";
     UsernameEntry.Text = config.Username ?? "";
-    PrivateKeyEntry.Text = config.PrivateKey ?? "";
+    PrivateKeyEditor.Text = config.PrivateKey ?? "";
+    PrivateKeyHasPassphraseCheckbox.IsChecked = config.PrivateKeyHasPassphrase;
   }
 
   private async void BackToolbarBtn_OnClicked(object? sender, EventArgs e)
@@ -36,7 +37,8 @@ public partial class ConfigurationModal : ContentPage
     {
       Hostname = HostnameEntry.Text is { Length: >0} h ? h : null,
       Username = UsernameEntry.Text is { Length: >0} u ? u : null,
-      PrivateKey = PrivateKeyEntry.Text is { Length: >0} p ? p : null,
+      PrivateKey = PrivateKeyEditor.Text is { Length: >0} p ? p : null,
+      PrivateKeyHasPassphrase = PrivateKeyHasPassphraseCheckbox.IsChecked,
     });
   }
 

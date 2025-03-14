@@ -1,17 +1,18 @@
-﻿namespace Org.Grush.NasFileCopy.Remote.Ui;
+﻿using Org.Grush.NasFileCopy.Remote.Ui.Services;
+
+namespace Org.Grush.NasFileCopy.Remote.Ui;
 
 public partial class MainPage : ContentPage
 {
-  int count = 0;
-
-  public MainPage()
+  public MainPage(IPopUpService popUpService)
   {
     InitializeComponent();
+
+    popUpService.RegisterPromptHandler(this);
   }
 
   private void OnCounterClicked(object sender, EventArgs e)
   {
-    count++;
 
     // if (count == 1)
     //   CounterBtn.Text = $"Clicked {count} time";
