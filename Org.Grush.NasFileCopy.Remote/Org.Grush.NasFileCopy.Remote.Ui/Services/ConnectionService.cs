@@ -1,5 +1,7 @@
+using System.Text;
 using Org.Grush.NasFileCopy.Remote.Share;
 using Renci.SshNet;
+using Renci.SshNet.Common;
 
 namespace Org.Grush.NasFileCopy.Remote.Ui.Services;
 
@@ -34,7 +36,8 @@ internal class ConnectionService
   {
     _trueNasClient = trueNasClient;
     _storageService = storageService;
-    storageService.ConfigChanged += StorageConfigChanged;
+
+    _storageService.ConfigChanged += StorageConfigChanged;
   }
 
   public void ConnectAsync()
@@ -61,7 +64,7 @@ internal class ConnectionService
       {
         // TODO: error handling
       }
-    }).ConfigureAwait(ConfigureAwaitOptions.ContinueOnCapturedContext);
+    }).ConfigureAwait(true);
   }
 
   private void StorageConfigChanged(object? sender, (StorageConfig?, StorageConfig) tuple)
@@ -73,18 +76,22 @@ internal class ConnectionService
 
     try
     {
-      if (previousStorageConfig?.PathToSshKey != newStorageConfig.PathToSshKey)
+      if (previousStorageConfig?.PrivateKey != newStorageConfig.PrivateKey)
       {
-        var privateKeyFile = newStorageConfig.PathToSshKey is null
-          ? null
-          : new PrivateKeyFile(newStorageConfig.PathToSshKey);
+        PrivateKeyFile? privateKeyFile = null;
+        if (newStorageConfig.PrivateKey is not null)
+        {
+          using var stream = new MemoryStream(Encoding.UTF8.GetBytes(newStorageConfig.PrivateKey));
+
+          privateKeyFile = new PrivateKeyFile(stream);
+        }
 
         // only rebuild the connectionInfo if there already was one AND we have ALL the necessary stuff
         var connectionInfo = (
           privateKeyFile is not null &&
-            oldConnectionConfig is { ConnectionInfo: not null } &&
-            newStorageConfig is { Username: {} username, Hostname: {} hostname }
-          )
+          oldConnectionConfig is { ConnectionInfo: not null } &&
+          newStorageConfig is { Username: { } username, Hostname: { } hostname }
+        )
           ? new PrivateKeyConnectionInfo(host: hostname, username: username, privateKeyFile)
           : null;
 
@@ -95,6 +102,16 @@ internal class ConnectionService
           PrivateKeyFile = privateKeyFile,
         };
       }
+    }
+    catch (SshException /*ex*/)
+    {
+      _storageService.WriteConfig(old => old with { PrivateKey = null });
+      // TODO: error handling, private key invalid
+    }
+    catch (Exception ex)
+    {
+      Console.WriteLine(ex);
+      // TODO: error handling
     }
     finally
     {

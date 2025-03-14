@@ -5,13 +5,13 @@ using Org.Grush.NasFileCopy.Remote.Ui.DiTokens;
 
 namespace Org.Grush.NasFileCopy.Remote.Ui.Services;
 
-internal interface IStorageService
+public interface IStorageService
 {
   public event EventHandler<(StorageConfig? oldConfig, StorageConfig newConfig)>? ConfigChanged;
 
   public StorageConfig ReadConfig();
 
-  public void WriteConfig(StorageConfig value);
+  public void WriteConfig(Func<StorageConfig, StorageConfig> updateFn);
 }
 
 
@@ -19,20 +19,20 @@ internal interface IStorageService
 public record StorageConfig(
   string? Hostname = null,
   string? Username = null,
-  string? PathToSshKey = null
+  string? PrivateKey = null
 )
 {
   public static readonly StorageConfig Default = new();
 }
 
 internal class FileStorageService(
-  ExeDirectory exeDirectoryToken
+  ReadWriteDirectory rwDirToken
 ) : IStorageService
 {
   private static readonly string ConfigFileName = typeof(FileStorageService).Assembly.FullName! + ".config.json";
-  private readonly DirectoryInfo _exeDirectory = exeDirectoryToken;
+  private readonly DirectoryInfo _rwDir = rwDirToken;
 
-  private FileInfo ConfigFile => new(Path.Combine(_exeDirectory.FullName, ConfigFileName));
+  private FileInfo ConfigFile => new(Path.Combine(_rwDir.FullName, ConfigFileName));
 
   private StorageConfig? _config;
 
@@ -56,21 +56,27 @@ internal class FileStorageService(
     return _config;
   }
 
-  public void WriteConfig(StorageConfig value)
+  public void WriteConfig(Func<StorageConfig, StorageConfig> updateFn)
   {
-    ArgumentNullException.ThrowIfNull(value);
+    ArgumentNullException.ThrowIfNull(updateFn);
 
     var existingConfig = ReadConfig();
-    _config = value;
+    _config = updateFn(existingConfig);
 
     if (existingConfig.Equals(_config))
       return;
 
     var file = ConfigFile;
-    using var writeStream = file.Open(FileMode.Create, FileAccess.Write, FileShare.Read);
+    try
+    {
+      using var writeStream = file.Open(FileMode.Create, FileAccess.Write, FileShare.Read);
 
-    JsonSerializer.Serialize(writeStream, _config, FileStorageConfigSerializerContext.Default.StorageConfig);
-
+      JsonSerializer.Serialize(writeStream, _config, FileStorageConfigSerializerContext.Default.StorageConfig);
+    }
+    catch (Exception ex)
+    {
+      Console.WriteLine(ex);
+    }
     ConfigChanged!.Invoke(this, (existingConfig, _config));
   }
 

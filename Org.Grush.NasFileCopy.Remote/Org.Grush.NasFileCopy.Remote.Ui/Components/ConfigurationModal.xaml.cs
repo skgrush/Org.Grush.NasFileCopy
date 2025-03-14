@@ -1,20 +1,43 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Org.Grush.NasFileCopy.Remote.Ui.Services;
 
 namespace Org.Grush.NasFileCopy.Remote.Ui.Components;
 
 public partial class ConfigurationModal : ContentPage
 {
-  public ConfigurationModal()
+  private readonly IStorageService _storage;
+
+  public ConfigurationModal(
+    IStorageService storage
+  )
   {
     InitializeComponent();
+
+    _storage = storage;
+
+    UpdateStorageConfig(_storage.ReadConfig());
+    _storage.ConfigChanged += (_, tuple) => UpdateStorageConfig(tuple.newConfig);
   }
 
-  private void BackToolbarBtn_OnClicked(object? sender, EventArgs e)
+  private void UpdateStorageConfig(StorageConfig config)
   {
-    Navigation.PopModalAsync().ConfigureAwait(false);
+    HostnameEntry.Text = config.Hostname ?? "";
+    UsernameEntry.Text = config.Username ?? "";
+    PrivateKeyEntry.Text = config.PrivateKey ?? "";
   }
+
+  private async void BackToolbarBtn_OnClicked(object? sender, EventArgs e)
+  {
+    await Navigation.PopModalAsync().ConfigureAwait(false);
+  }
+
+  private void SaveBtn_OnClicked(object? sender, EventArgs e)
+  {
+    _storage.WriteConfig(oldConfig => oldConfig with
+    {
+      Hostname = HostnameEntry.Text is { Length: >0} h ? h : null,
+      Username = UsernameEntry.Text is { Length: >0} u ? u : null,
+      PrivateKey = PrivateKeyEntry.Text is { Length: >0} p ? p : null,
+    });
+  }
+
 }

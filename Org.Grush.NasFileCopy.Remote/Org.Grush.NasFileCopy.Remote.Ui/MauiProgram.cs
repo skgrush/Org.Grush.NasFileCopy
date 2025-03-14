@@ -8,6 +8,16 @@ namespace Org.Grush.NasFileCopy.Remote.Ui;
 
 public static class MauiProgram
 {
+  public static readonly IReadOnlySet<DevicePlatform> ProtectivePlatforms = new HashSet<DevicePlatform>
+  {
+    DevicePlatform.Android,
+    DevicePlatform.iOS,
+    DevicePlatform.tvOS,
+    DevicePlatform.watchOS,
+    DevicePlatform.MacCatalyst,
+  };
+
+
   public static MauiApp CreateMauiApp()
   {
     bool useFileStorage = true;
@@ -21,12 +31,20 @@ public static class MauiProgram
         fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
       });
 
+    var exeDir = new ExeDirectory(new(AppDomain.CurrentDomain.BaseDirectory));
+
     builder.Services
       .AddNasFileCopy()
-      .AddSingleton(_ => new ExeDirectory(new(AppDomain.CurrentDomain.BaseDirectory)))
+      .AddSingleton(exeDir)
       .AddSingleton<ConnectionService>()
-      .AddSingleton<ConfigurationModal>()
+      .AddTransient<ConfigurationModal>()
     ;
+
+    if (ProtectivePlatforms.Contains(DeviceInfo.Platform))
+      builder.Services.AddSingleton(_ => new ReadWriteDirectory(new DirectoryInfo(FileSystem.CacheDirectory)));
+    else
+      builder.Services.AddSingleton(_ => new ReadWriteDirectory(exeDir));
+
 
     if (useFileStorage)
       builder.Services.AddSingleton<IStorageService, FileStorageService>();

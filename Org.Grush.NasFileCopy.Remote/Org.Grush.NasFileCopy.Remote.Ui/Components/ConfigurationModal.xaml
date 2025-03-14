@@ -2,7 +2,8 @@
 
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             x:Class="Org.Grush.NasFileCopy.Remote.Ui.Components.ConfigurationModal">
+             x:Class="Org.Grush.NasFileCopy.Remote.Ui.Components.ConfigurationModal"
+            >
   <ContentPage.ToolbarItems>
     <ToolbarItem
       x:Name="BackToolbarBtn"
@@ -13,15 +14,37 @@
 
   <ContentPage.Content>
     <Border>
-      <VerticalStackLayout>
-      <Label>Hostname</Label>
-      <Entry />
+      <VerticalStackLayout HorizontalOptions="Fill">
+        <Label>Hostname</Label>
+        <Entry
+          x:Name="HostnameEntry"
+        />
 
-      <Label>Username</Label>
-      <Entry />
+        <Label>Username</Label>
+        <Entry
+          x:Name="UsernameEntry"
+        />
 
-      <Label>SSH Private key path</Label>
-      <Entry />
+        <Label>SSH Private key</Label>
+
+        <VerticalStackLayout HorizontalOptions="Fill">
+          <Editor
+            x:Name="PrivateKeyEntry"
+          />
+        </VerticalStackLayout>
+
+        <HorizontalStackLayout>
+          <Button
+            x:Name="SaveBtn"
+            Text="Save"
+            Clicked="SaveBtn_OnClicked"
+          />
+          <Button
+            x:Name="BottomBackBtn"
+            Text="Back"
+            Clicked="BackToolbarBtn_OnClicked"
+          />
+        </HorizontalStackLayout>
       </VerticalStackLayout>
     </Border>
   </ContentPage.Content>
