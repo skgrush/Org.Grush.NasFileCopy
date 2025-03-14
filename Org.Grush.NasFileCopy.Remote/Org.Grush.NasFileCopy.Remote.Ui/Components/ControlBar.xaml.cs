@@ -26,9 +26,9 @@ public partial class ControlBar : ContentView
     };
   }
 
-  private void ConnectBtn_OnClicked(object? sender, EventArgs e)
+  private async void ConnectBtn_OnClicked(object? sender, EventArgs e)
   {
-    _connectionService.ConnectAsync();
+    await _connectionService.ConnectAsync().ConfigureAwait(true);
   }
 
   private void ConfigBtn_OnClicked(object? sender, EventArgs e)

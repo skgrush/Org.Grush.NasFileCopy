@@ -43,7 +43,7 @@ internal class ConnectionService
     _storageService.ConfigChanged += StorageConfigChanged;
   }
 
-  public void ConnectAsync()
+  public async Task ConnectAsync()
   {
     if (Config.IsConnected)
     {
@@ -55,19 +55,17 @@ internal class ConnectionService
     if (Config.ConnectionInfo is not { } connectionInfo)
       return;
 
-    Task.Run(async () =>
+    try
     {
-      try
-      {
-        await _trueNasClient.ConnectAsync(connectionInfo, null, CancellationToken.None);
-        Config = Config with { IsConnected = true };
-        ConnectionChanged?.Invoke(this, Config);
-      }
-      catch
-      {
-        // TODO: error handling
-      }
-    }).ConfigureAwait(true);
+      await _trueNasClient.ConnectAsync(connectionInfo, null, CancellationToken.None);
+      Config = Config with { IsConnected = true };
+      ConnectionChanged?.Invoke(this, Config);
+    }
+    catch (Exception ex)
+    {
+      await _popUpService.DisplayAlertAsync(ex.GetType().Name, ex.Message, cancel: "Close");
+      // TODO: error handling
+    }
   }
 
   private async void StorageConfigChanged(object? sender, (StorageConfig?, StorageConfig) tuple)
@@ -98,6 +96,8 @@ internal class ConnectionService
               title: "Private key passphrase",
               message: "Enter passphrase for private key"
             );
+            if (passphrase is "")
+              passphrase = null;
           }
 
           privateKeyFile = new PrivateKeyFile(stream, passphrase);

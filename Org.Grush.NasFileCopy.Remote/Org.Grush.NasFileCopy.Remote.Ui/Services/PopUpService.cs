@@ -7,6 +7,8 @@ public interface IPopUpService
 
   Task<string?> DisplayPromptAsync(string title, string message, string accept = "OK", string cancel = "Cancel",
     string? placeholder = null, string initialValue = "");
+
+  Task DisplayAlertAsync(string? title, string message, string? cancel = "Cancel");
 }
 
 internal class PopUpService : IPopUpService
@@ -25,6 +27,13 @@ internal class PopUpService : IPopUpService
 
     return await page.DisplayPromptAsync(title: title, message: message, accept: accept, cancel: cancel,
           placeholder: placeholder, initialValue: initialValue);
+  }
+
+  public async Task DisplayAlertAsync(string? title, string message, string? cancel = "Cancel")
+  {
+    var page = GetLastHandler();
+
+    await page.DisplayAlert(title: title, message: message, cancel: cancel);
   }
 
   private Page GetLastHandler()
