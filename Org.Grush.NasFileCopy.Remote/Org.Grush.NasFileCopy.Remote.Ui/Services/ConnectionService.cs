@@ -13,7 +13,14 @@ public record ConnectionConfig(
   PrivateKeyFile? PrivateKeyFile
 );
 
-internal class ConnectionService
+public interface IConnectionService
+{
+  ConnectionConfig Config { get; }
+  event EventHandler<ConnectionConfig>? ConnectionChanged;
+  Task ConnectAsync();
+}
+
+internal class ConnectionService : IConnectionService
 {
   private readonly ITrueNasClient _trueNasClient;
   private readonly IStorageService _storageService;

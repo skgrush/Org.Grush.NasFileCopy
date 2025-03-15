@@ -5,25 +5,29 @@ namespace Org.Grush.NasFileCopy.Remote.Ui.Components;
 
 public partial class ControlBar : ContentView
 {
-  private ITrueNasClient _client = null!;
-  private IStorageService _storage = null!;
-  private ConnectionService _connectionService = null!;
+  private readonly ITrueNasClient _client;
+  private readonly IStorageService _storage;
+  private readonly IConnectionService _connectionService;
 
-  public ControlBar()
+  public ControlBar() : this(
+    MauiProgram.ServiceProvider.GetRequiredService<ITrueNasClient>(),
+    MauiProgram.ServiceProvider.GetRequiredService<IStorageService>(),
+    MauiProgram.ServiceProvider.GetRequiredService<IConnectionService>()
+  )
   {
+  }
+
+  public ControlBar(ITrueNasClient client, IStorageService storage, IConnectionService connectionService)
+  {
+    _client = client;
+    _storage = storage;
+    _connectionService = connectionService;
+
     InitializeComponent();
 
     ConnectBtn.IsEnabled = RefreshBtn.IsEnabled = false;
 
-    HandlerChanged += (sender, args) =>
-    {
-      var services = Handler!.MauiContext!.Services;
-      _client = services.GetRequiredService<ITrueNasClient>();
-      _storage = services.GetRequiredService<IStorageService>();
-      _connectionService = services.GetRequiredService<ConnectionService>();
-
-      _connectionService.ConnectionChanged += ConnectionChanged;
-    };
+    _connectionService.ConnectionChanged += ConnectionChanged;
   }
 
   private async void ConnectBtn_OnClicked(object? sender, EventArgs e)

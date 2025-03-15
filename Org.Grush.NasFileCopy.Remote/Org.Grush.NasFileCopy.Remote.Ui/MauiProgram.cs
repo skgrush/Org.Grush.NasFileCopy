@@ -17,6 +17,8 @@ public static class MauiProgram
     DevicePlatform.MacCatalyst,
   };
 
+  public static IServiceProvider ServiceProvider { get; private set; } = null!;
+
 
   public static MauiApp CreateMauiApp()
   {
@@ -41,7 +43,7 @@ public static class MauiProgram
     builder.Services
       .AddNasFileCopy()
       .AddSingleton(exeDir)
-      .AddSingleton<ConnectionService>()
+      .AddSingleton<IConnectionService, ConnectionService>()
       .AddSingleton<IPopUpService, PopUpService>()
     ;
 
@@ -60,6 +62,9 @@ public static class MauiProgram
     builder.Logging.AddDebug();
 #endif
 
-    return builder.Build();
+    var app = builder.Build();
+    ServiceProvider = app.Services;
+
+    return app;
   }
 }
