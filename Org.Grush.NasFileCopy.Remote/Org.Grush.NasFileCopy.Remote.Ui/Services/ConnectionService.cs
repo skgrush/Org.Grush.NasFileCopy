@@ -17,7 +17,8 @@ public interface IConnectionService
 {
   ConnectionConfig Config { get; }
   event EventHandler<ConnectionConfig>? ConnectionChanged;
-  Task ConnectAsync();
+  Task<(bool succeeded, bool validTry)> ConnectAsync();
+  Task DisconnectAsync();
 }
 
 internal class ConnectionService : IConnectionService
@@ -50,28 +51,50 @@ internal class ConnectionService : IConnectionService
     _storageService.ConfigChanged += StorageConfigChanged;
   }
 
-  public async Task ConnectAsync()
+  public async Task<(bool succeeded, bool validTry)> ConnectAsync()
   {
     if (Config.IsConnected)
     {
+      if (_trueNasClient.IsSshConnected)
+        throw new InvalidOperationException("Already connected.");
+      // Config state is mismatched with client
       Config = Config with { IsConnected = false };
-      ConnectionChanged?.Invoke(this, Config);
-      return;
+      // try to reconnect
     }
 
     if (Config.ConnectionInfo is not { } connectionInfo)
-      return;
+      return (succeeded: false, validTry: false);
 
     try
     {
-      await _trueNasClient.ConnectAsync(connectionInfo, null, CancellationToken.None);
+      await _trueNasClient.ConnectAsync(connectionInfo, null, CancellationToken.None).ConfigureAwait(true);
       Config = Config with { IsConnected = true };
       ConnectionChanged?.Invoke(this, Config);
+
+      return (succeeded: true, validTry: true);
     }
     catch (Exception ex)
     {
       await _popUpService.DisplayAlertAsync(ex.GetType().Name, ex.Message, cancel: "Close");
       // TODO: error handling
+
+      return (succeeded: false, validTry: true);
+    }
+  }
+
+  public async Task DisconnectAsync()
+  {
+    if (!Config.IsConnected && !_trueNasClient.IsSshConnected)
+      throw new InvalidOperationException("Already disconnected.");
+
+    try
+    {
+      await _trueNasClient.DisposeAsync().ConfigureAwait(true);
+    }
+    finally
+    {
+      Config = Config with { IsConnected = false };
+      ConnectionChanged?.Invoke(this, Config);
     }
   }
 

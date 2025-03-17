@@ -5,37 +5,36 @@ namespace Org.Grush.NasFileCopy.Remote.Ui.Components;
 
 public partial class ControlBar : ContentView
 {
-  private readonly ITrueNasClient _client;
-  private readonly IStorageService _storage;
   private readonly IConnectionService _connectionService;
   private readonly IDataService _dataService;
 
   public ControlBar() : this(
-    client: MauiProgram.ServiceProvider.GetRequiredService<ITrueNasClient>(),
-    storage: MauiProgram.ServiceProvider.GetRequiredService<IStorageService>(),
     connectionService: MauiProgram.ServiceProvider.GetRequiredService<IConnectionService>(),
     dataService: MauiProgram.ServiceProvider.GetRequiredService<IDataService>()
-  )
-  {
-  }
+  ) { }
 
-  public ControlBar(ITrueNasClient client, IStorageService storage, IConnectionService connectionService, IDataService dataService)
+  public ControlBar(IConnectionService connectionService, IDataService dataService)
   {
-    _client = client;
-    _storage = storage;
     _connectionService = connectionService;
     _dataService = dataService;
 
     InitializeComponent();
 
     ConnectBtn.IsEnabled = RefreshBtn.IsEnabled = false;
+    DisconnectBtn.IsVisible = false;
 
     _connectionService.ConnectionChanged += ConnectionChanged;
   }
 
   private async void ConnectBtn_OnClicked(object? sender, EventArgs e)
   {
-    await _connectionService.ConnectAsync().ConfigureAwait(true);
+    ConnectBtn.IsEnabled = RefreshBtn.IsEnabled = ConfigBtn.IsEnabled = false;
+    var result = await _connectionService.ConnectAsync().ConfigureAwait(ConfigureAwaitOptions.ContinueOnCapturedContext);
+
+    if (!result.validTry)
+    {
+      ConnectBtn.IsEnabled = ConfigBtn.IsEnabled = true;
+    }
   }
 
   private void ConfigBtn_OnClicked(object? sender, EventArgs e)
@@ -53,6 +52,15 @@ public partial class ControlBar : ContentView
   private void ConnectionChanged(object? sender, ConnectionConfig config)
   {
     ConnectBtn.IsEnabled = config.ConnectionInfo is not null;
+    ConnectBtn.IsVisible = !config.IsConnected;
+    DisconnectBtn.IsVisible = config.IsConnected;
+
+    ConfigBtn.IsEnabled = !config.IsConnected;
     RefreshBtn.IsEnabled = config.IsConnected;
+  }
+
+  private async void DisconnectBtn_OnClicked(object? sender, EventArgs e)
+  {
+    await _connectionService.DisconnectAsync().ConfigureAwait(true);
   }
 }

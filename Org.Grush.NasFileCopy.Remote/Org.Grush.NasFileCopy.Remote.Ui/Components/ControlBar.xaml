@@ -12,6 +12,11 @@
       Clicked="ConnectBtn_OnClicked"
     />
     <Button
+      x:Name="DisconnectBtn"
+      Text="Disconnect"
+      Clicked="DisconnectBtn_OnClicked"
+    />
+    <Button
       x:Name="ConfigBtn"
       Text="Configuration"
       Clicked="ConfigBtn_OnClicked"
