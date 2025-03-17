@@ -8,20 +8,23 @@ public partial class ControlBar : ContentView
   private readonly ITrueNasClient _client;
   private readonly IStorageService _storage;
   private readonly IConnectionService _connectionService;
+  private readonly IDataService _dataService;
 
   public ControlBar() : this(
-    MauiProgram.ServiceProvider.GetRequiredService<ITrueNasClient>(),
-    MauiProgram.ServiceProvider.GetRequiredService<IStorageService>(),
-    MauiProgram.ServiceProvider.GetRequiredService<IConnectionService>()
+    client: MauiProgram.ServiceProvider.GetRequiredService<ITrueNasClient>(),
+    storage: MauiProgram.ServiceProvider.GetRequiredService<IStorageService>(),
+    connectionService: MauiProgram.ServiceProvider.GetRequiredService<IConnectionService>(),
+    dataService: MauiProgram.ServiceProvider.GetRequiredService<IDataService>()
   )
   {
   }
 
-  public ControlBar(ITrueNasClient client, IStorageService storage, IConnectionService connectionService)
+  public ControlBar(ITrueNasClient client, IStorageService storage, IConnectionService connectionService, IDataService dataService)
   {
     _client = client;
     _storage = storage;
     _connectionService = connectionService;
+    _dataService = dataService;
 
     InitializeComponent();
 
@@ -44,7 +47,7 @@ public partial class ControlBar : ContentView
 
   private void RefreshBtn_OnClicked(object? sender, EventArgs e)
   {
-    throw new NotImplementedException();
+    _dataService.RefreshAsync().ConfigureAwait(true);
   }
 
   private void ConnectionChanged(object? sender, ConnectionConfig config)

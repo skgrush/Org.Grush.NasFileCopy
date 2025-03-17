@@ -45,7 +45,7 @@ public record struct LsblkDevice(
   /// <summary>
   /// Print bytes as a number
   /// </summary>
-  public const string Options = $"--bytes --paths --output {OutputColumns}";
+  public const string Options = $"--bytes --json --paths --output {OutputColumns}";
   public const string OutputColumns =
     "PATH,RO,HOTPLUG,VENDOR,MODEL,LABEL,NAME,PARTLABEL,PARTTYPE,PARTTYPENAME,SIZE,MOUNTPOINT,TYPE,TRAN,FSTYPE,FSVER,MOUNTPOINTS";
 

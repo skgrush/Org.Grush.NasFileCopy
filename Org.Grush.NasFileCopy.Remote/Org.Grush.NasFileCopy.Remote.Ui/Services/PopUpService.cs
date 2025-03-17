@@ -2,7 +2,10 @@ namespace Org.Grush.NasFileCopy.Remote.Ui.Services;
 
 public interface IPopUpService
 {
+  /// <summary>Register a weakref of the page as a popup handler. The last registered will be used.</summary>
   void RegisterPromptHandler(Page page);
+
+  /// <summary>Unregister the page and tidy up any other weakrefs.</summary>
   void UnregisterPromptHandler(Page page);
 
   Task<string?> DisplayPromptAsync(string title, string message, string accept = "OK", string cancel = "Cancel",
@@ -13,10 +16,11 @@ public interface IPopUpService
 
 internal class PopUpService : IPopUpService
 {
-  private readonly List<WeakReference<Page>> PromptHandlerStack = [];
+  private List<WeakReference<Page>> PromptHandlerStack { get; } = [];
 
   public void RegisterPromptHandler(Page page)
     => PromptHandlerStack.Add(new WeakReference<Page>(page));
+
   public void UnregisterPromptHandler(Page page)
   => PromptHandlerStack.RemoveAll(weakRef => !weakRef.TryGetTarget(out var p) || ReferenceEquals(p, page));
 

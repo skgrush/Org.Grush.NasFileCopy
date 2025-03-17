@@ -13,6 +13,9 @@
           <components:ControlBar
             />
 
+          <components:ControlPanel
+            />
+
 
           <!-- <Image -->
             <!--     Source="dotnet_bot.png" -->

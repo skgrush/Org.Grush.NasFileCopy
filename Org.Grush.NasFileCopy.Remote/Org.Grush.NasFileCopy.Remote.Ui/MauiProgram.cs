@@ -44,6 +44,7 @@ public static class MauiProgram
       .AddNasFileCopy()
       .AddSingleton(exeDir)
       .AddSingleton<IConnectionService, ConnectionService>()
+      .AddSingleton<IDataService, DataService>()
       .AddSingleton<IPopUpService, PopUpService>()
     ;
 

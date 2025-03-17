@@ -42,7 +42,8 @@ internal sealed class TrueNasClient(
     UiResult.ExecuteAsync(async () => await RsyncLogReader.GetExistingRunsAsync(_sshClient, cancellationToken));
 
   /// <inheritdoc />
-  public async Task<UiResult<ImmutableArray<(string Name, string Mountpoint)>>> GetSourceDatasets(CancellationToken cancellationToken)
+  public async Task<UiResult<ImmutableArray<SourceDataset>>> GetSourceDatasets(
+    CancellationToken cancellationToken)
   {
     if (IsHttpConnected)
     {
@@ -52,7 +53,7 @@ internal sealed class TrueNasClient(
 
         return datasets
           .SelectMany(d => d.DepthfirstRecurse())
-          .Select(d => (d.Name, d.Mountpoint))
+          .Select(d => new SourceDataset(d.Name, d.Mountpoint))
           .ToImmutableArray();
       });
     }
@@ -60,13 +61,13 @@ internal sealed class TrueNasClient(
     var allMountsResult = await _sshClient.MountListAsync(cancellationToken);
 
     if (!allMountsResult.Success)
-      return allMountsResult.ToUiError<ImmutableArray<(string Name, string Mountpoint)>>();
+      return allMountsResult.ToUiError<ImmutableArray<SourceDataset>>();
 
     var allowedDatasets = allMountsResult.Result
       .Where(m => CheckedDatasetFolders.Any(f => m.MountPoint.StartsWith(f)));
 
     return allowedDatasets
-      .Select(d => (d.Device, d.MountPoint))
+      .Select(d => new SourceDataset(d.Device, d.MountPoint))
       .ToImmutableArray();
   }
 

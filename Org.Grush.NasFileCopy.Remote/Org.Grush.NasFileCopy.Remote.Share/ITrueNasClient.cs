@@ -19,7 +19,7 @@ public interface ITrueNasClient : IAsyncDisposable
   /// If the API client is connected, we'll retrieve official TrueNas datasets.
   /// If not, we will only return mountpoints that that start with <see cref="TrueNasClient.CheckedDatasetFolders"/>.
   /// </summary>
-  Task<UiResult<ImmutableArray<(string Name, string Mountpoint)>>> GetSourceDatasets(CancellationToken cancellationToken);
+  Task<UiResult<ImmutableArray<SourceDataset>>> GetSourceDatasets(CancellationToken cancellationToken);
 
   Task<UiResult<ImmutableArray<LsblkDevice>>> GetDestinationDevices(bool onlyHotpluggable, CancellationToken cancellationToken);
   IAsyncEnumerable<RsyncLogState>? ListenToLocallyConnectedLog(string runId, Func<string, Task> errorLogger, CancellationToken cancellationToken);
