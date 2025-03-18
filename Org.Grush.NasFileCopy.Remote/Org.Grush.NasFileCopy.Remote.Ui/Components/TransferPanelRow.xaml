@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:components="clr-namespace:Org.Grush.NasFileCopy.Remote.Ui.Components"
+             x:Class="Org.Grush.NasFileCopy.Remote.Ui.Components.TransferPanelRow">
+
+  <Grid x:DataType="components:TransferPanelRow">
+    <Grid.RowDefinitions> <RowDefinition Height="Auto" /> </Grid.RowDefinitions>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="300" /> <!-- RunId -->
+      <ColumnDefinition Width="100" /> <!-- Status -->
+      <ColumnDefinition Width="*" /> <!-- progress -->
+      <ColumnDefinition Width="300" /> <!-- buttons -->
+    </Grid.ColumnDefinitions>
+
+    <Label
+      Text="{Binding Path=Run.RunId }"
+      Grid.Column="0"
+    />
+    <Label
+      Text="{Binding Path=State.Status , FallbackValue=null }"
+      Grid.Column="1"
+    />
+    <!-- TODO: progress -->
+    <BoxView
+      Grid.Column="3"
+    >
+
+    </BoxView>
+  </Grid>
+</ContentView>

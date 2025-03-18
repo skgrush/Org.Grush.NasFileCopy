@@ -59,6 +59,7 @@ internal class DataService : IDataService
   public void CancelRefresh()
   {
     ConnectionChangeCanceller.Cancel();
+    ConnectionChangeCanceller.Dispose();
     ConnectionChangeCanceller = new CancellationTokenSource();
   }
 

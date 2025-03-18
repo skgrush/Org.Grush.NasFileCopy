@@ -16,6 +16,9 @@
           <components:ControlPanel
             />
 
+          <components:TransfersPanel
+            />
+
 
           <!-- <Image -->
             <!--     Source="dotnet_bot.png" -->
