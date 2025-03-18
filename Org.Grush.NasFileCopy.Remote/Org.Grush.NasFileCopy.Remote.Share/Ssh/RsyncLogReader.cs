@@ -503,7 +503,7 @@ internal sealed class RsyncLogReader : IAsyncDisposable
       {
       }
 
-      runs.Add(new (RunId: runId, ProcessState: processState, CopyFrom: copyFrom, Destination: destination, Line: lsLine));
+      runs.Add(new (RunId: runId, ProcessState: processState, CopyFrom: copyFrom, Destination: destination)); //, Line: lsLine));
     }
 
     return [..runs];
@@ -543,8 +543,8 @@ public readonly record struct ExistingRun(
   string RunId,
   string? ProcessState,
   string? CopyFrom,
-  string? Destination,
-  LsLine Line
+  string? Destination
+  // , LsLine Line
 );
 
 

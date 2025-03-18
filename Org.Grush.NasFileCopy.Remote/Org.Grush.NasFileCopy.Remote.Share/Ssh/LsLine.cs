@@ -18,6 +18,7 @@ public record LsLine(
   LsType FileType,
   UnixFileMode FileMode,
   string AclFlag,
+  [property:Obsolete("Don't use this number until we understand it.")]
   string _UnknownNumber,
   string User,
   string Group,
