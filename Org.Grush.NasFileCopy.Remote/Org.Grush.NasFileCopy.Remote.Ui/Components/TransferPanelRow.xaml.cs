@@ -1,35 +1,36 @@
-using System;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
 using Org.Grush.NasFileCopy.Remote.Share;
+using Org.Grush.NasFileCopy.Remote.Share.Extensions;
 using Org.Grush.NasFileCopy.Remote.Share.Ssh;
+using Org.Grush.NasFileCopy.Remote.Ui.Services;
 
 namespace Org.Grush.NasFileCopy.Remote.Ui.Components;
 
 public partial class TransferPanelRow : ContentView
 {
   private readonly ITrueNasClient _trueNasClient;
+  private readonly IModalService _modalService;
 
-  // TODO: need to clean this up, maybe with a behavior
   private CancellationTokenSource RunChangedCanceller { get; set; } = new();
 
   public ObservableState? State { get; private set; }
 
   public TransferPanelRow() : this(
-    trueNasClient: MauiProgram.ServiceProvider.GetRequiredService<ITrueNasClient>()
+    trueNasClient: MauiProgram.ServiceProvider.GetRequiredService<ITrueNasClient>(),
+    modalService: MauiProgram.ServiceProvider.GetRequiredService<IModalService>()
   ) { }
 
   public TransferPanelRow(
-    ITrueNasClient trueNasClient
+    ITrueNasClient trueNasClient,
+    IModalService modalService
   )
   {
     _trueNasClient = trueNasClient;
+    _modalService = modalService;
 
     InitializeComponent();
+
+    Unloaded += (_, _) => RunChangedCanceller.Cancel();
   }
 
   public ExistingRun Run
@@ -49,7 +50,7 @@ public partial class TransferPanelRow : ContentView
 
     var token = RunChangedCanceller.Token;
 
-
+    Listen(newRun.Value, RunChangedCanceller.Token);
   }
 
   private async void Listen(ExistingRun run, CancellationToken token)
@@ -93,7 +94,8 @@ public partial class TransferPanelRow : ContentView
 
     await foreach (var item in asyncEnum)
     {
-      token.ThrowIfCancellationRequested();
+      if (token.IsCancellationRequested)
+        break;
 
       State.Update(item);
     }
@@ -109,7 +111,16 @@ public partial class TransferPanelRow : ContentView
 
     public bool Completed => RsyncLogState?.CompletedSuccessfully is not null;
     public string? LatestTransmittedFile => RsyncLogState?.LatestTransmittedFile;
-    public ulong? TotalKnownBytesTransmitted => RsyncLogState?.TotalKnownBytesTransmitted;
+    public string TotalKnownBytesTransmitted
+    {
+      get
+      {
+        if (RsyncLogState?.TotalKnownBytesTransmitted is not { } b)
+          return "N/A";
+
+        return b.FormatToBytes();
+      }
+    }
 
     public string Status {
       get
@@ -124,21 +135,18 @@ public partial class TransferPanelRow : ContentView
         if (_run.ProcessState is not {} processState)
           return "PROC NOT FOUND";
 
-        if (processState[0] is 'R')
+        var processLetter = processState[0];
+        if (processLetter is 'R' && RsyncLogState?.LatestTransmittedFile is null)
+          return "LOADING";
+
+        return processLetter switch
         {
-          if (RsyncLogState?.LatestTransmittedFile is null)
-            return "LOADING";
-          return "RUNNING";
-        }
-
-        if (processState[0] is char sleepLetter and ('S' or 'D'))
-          return $"SLEEPING({sleepLetter})";
-        if (processState[0] is 'T' or 't')
-          return "STOPPED";
-        if (processState[0] is char diedLetter and ('Z' or 'X'))
-          return $"DIED({diedLetter})";
-
-        return $"[??={processState}]";
+          'R' or 'r' => "RUNNING",
+          'T' or 't' => "STOPPED",
+          'S' or 'D' => $"SLEEPING({processLetter})",
+          'Z' or 'X' => $"DIED({processLetter})",
+          _          => $"[??={processState}]",
+        };
       }
     }
 
@@ -164,6 +172,23 @@ public partial class TransferPanelRow : ContentView
       if (state != old)
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Status)));
     }
+
+    public async Task OpenModal(IModalService modalService)
+    {
+      if (RsyncLogState is not null)
+        await modalService.OpenTransferPanelModal(_run, RsyncLogState.Value);
+    }
+  }
+
+  private async void InfoBtn_OnClicked(object? sender, EventArgs e)
+  {
+    if (State is not null)
+      await State.OpenModal(_modalService);
+  }
+
+  private void StopBtn_OnClicked(object? sender, EventArgs e)
+  {
+    throw new NotImplementedException();
   }
 
 

@@ -22,11 +22,28 @@
       Text="{Binding Path=State.Status , FallbackValue=null }"
       Grid.Column="1"
     />
+    <Label
+      Text="{Binding Path=State.TotalKnownBytesTransmitted, FallbackValue=null }"
+      Grid.Column="2"
+    />
     <!-- TODO: progress -->
-    <BoxView
+    <HorizontalStackLayout
       Grid.Column="3"
     >
+      <Button
+        Text="Info"
+        x:Name="InfoBtn"
+        Clicked="InfoBtn_OnClicked"
+      />
 
-    </BoxView>
+      <!--
+      <Button
+        Text="Stop"
+        x:Name="StopBtn"
+        Clicked="StopBtn_OnClicked"
+      />
+      -->
+    </HorizontalStackLayout>
+
   </Grid>
 </ContentView>

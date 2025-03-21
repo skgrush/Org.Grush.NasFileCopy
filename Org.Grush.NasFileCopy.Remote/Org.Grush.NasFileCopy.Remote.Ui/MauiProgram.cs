@@ -38,7 +38,6 @@ public static class MauiProgram
     builder.Services
       .AddTransient<MainPage>()
       .AddTransient<ConfigurationModal>()
-      .AddTransient<TransferInfoModal>()
     ;
 
     builder.Services
