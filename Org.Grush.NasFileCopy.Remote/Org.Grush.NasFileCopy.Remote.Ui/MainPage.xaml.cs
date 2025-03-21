@@ -4,11 +4,15 @@ namespace Org.Grush.NasFileCopy.Remote.Ui;
 
 public partial class MainPage : ContentPage
 {
-  public MainPage(IPopUpService popUpService)
+  public MainPage(
+    IPopUpService popUpService,
+    IModalService modalService
+  )
   {
     InitializeComponent();
 
     popUpService.RegisterPromptHandler(this);
+    modalService.RegisterNavigation(Navigation);
   }
 
   private void OnCounterClicked(object sender, EventArgs e)

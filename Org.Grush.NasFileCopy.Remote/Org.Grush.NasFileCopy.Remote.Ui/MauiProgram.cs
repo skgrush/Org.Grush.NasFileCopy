@@ -38,6 +38,7 @@ public static class MauiProgram
     builder.Services
       .AddTransient<MainPage>()
       .AddTransient<ConfigurationModal>()
+      .AddTransient<TransferInfoModal>()
     ;
 
     builder.Services
@@ -46,6 +47,7 @@ public static class MauiProgram
       .AddSingleton<IConnectionService, ConnectionService>()
       .AddSingleton<IDataService, DataService>()
       .AddSingleton<IPopUpService, PopUpService>()
+      .AddSingleton<IModalService, ModalService>()
     ;
 
     if (ProtectivePlatforms.Contains(DeviceInfo.Platform))

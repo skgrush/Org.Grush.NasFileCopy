@@ -5,14 +5,17 @@ namespace Org.Grush.NasFileCopy.Remote.Ui.Components;
 public partial class ConfigurationModal : ContentPage
 {
   private readonly IStorageService _storage;
+  private readonly IModalService _modalService;
 
   public ConfigurationModal(
-    IStorageService storage
+    IStorageService storage,
+    IModalService modalService
   )
   {
     InitializeComponent();
 
     _storage = storage;
+    _modalService = modalService;
 
     UpdateStorageConfig(_storage.ReadConfig());
     _storage.ConfigChanged += (_, tuple) => UpdateStorageConfig(tuple.newConfig);
@@ -28,7 +31,7 @@ public partial class ConfigurationModal : ContentPage
 
   private async void BackToolbarBtn_OnClicked(object? sender, EventArgs e)
   {
-    await Navigation.PopModalAsync().ConfigureAwait(false);
+    await _modalService.PopModalAsync();
   }
 
   private void SaveBtn_OnClicked(object? sender, EventArgs e)

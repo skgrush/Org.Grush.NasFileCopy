@@ -7,16 +7,23 @@ public partial class ControlBar : ContentView
 {
   private readonly IConnectionService _connectionService;
   private readonly IDataService _dataService;
+  private readonly IModalService _modalService;
 
   public ControlBar() : this(
     connectionService: MauiProgram.ServiceProvider.GetRequiredService<IConnectionService>(),
-    dataService: MauiProgram.ServiceProvider.GetRequiredService<IDataService>()
+    dataService: MauiProgram.ServiceProvider.GetRequiredService<IDataService>(),
+    modalService: MauiProgram.ServiceProvider.GetRequiredService<IModalService>()
   ) { }
 
-  public ControlBar(IConnectionService connectionService, IDataService dataService)
+  public ControlBar(
+    IConnectionService connectionService,
+    IDataService dataService,
+    IModalService modalService
+  )
   {
     _connectionService = connectionService;
     _dataService = dataService;
+    _modalService = modalService;
 
     InitializeComponent();
 
@@ -39,9 +46,7 @@ public partial class ControlBar : ContentView
 
   private void ConfigBtn_OnClicked(object? sender, EventArgs e)
   {
-    var configPage = Handler?.MauiContext?.Services.GetService<ConfigurationModal>();
-
-    Navigation.PushModalAsync(configPage).ConfigureAwait(ConfigureAwaitOptions.None);
+    _modalService.OpenConfigurationModal();
   }
 
   private void RefreshBtn_OnClicked(object? sender, EventArgs e)
