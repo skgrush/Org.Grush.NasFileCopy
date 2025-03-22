@@ -1,21 +1,24 @@
 using System.Collections.Immutable;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Org.Grush.NasFileCopy.Remote.Share.Ssh;
+using Org.Grush.NasFileCopy.Remote.Share.Validation;
 using Renci.SshNet;
 
 namespace Org.Grush.NasFileCopy.Remote.Share;
 
-public class DangerousOperationException(string message, string paramName) : ArgumentException(message, paramName);
+public class DangerousOperationException(string message, string paramName) : ArgumentException(message, paramName)
+{
+  public DangerousOperationException(string what, IEnumerable<string> errors, string paramName)
+    : this($"{what}: {string.Join(", ", errors)}", paramName)
+  {
+  }
+}
 
 internal sealed class TrueNasSshClient(
   IAnalyticsReporter analyticsReporter
 ) : IAsyncDisposable
 {
-  private static readonly Regex DangerousShellQuoteChars = new("""[\\"\n]""");
-  private static readonly Regex DangerousSingleQuoteChars = new("""[\\'\n]""");
-
   internal SshClient? SshClient { get; private set; }
 
   public bool IsDisposed { get; private set; }
@@ -90,6 +93,7 @@ internal sealed class TrueNasSshClient(
       },
       cancellationToken: cancellationToken
     );
+
   public async Task<SshResult<bool>> MountDeviceAsync(string devPath, string destinationPath, CancellationToken cancellationToken) =>
     await CallCommand<bool>(
       preconditions: null,
@@ -109,8 +113,8 @@ internal sealed class TrueNasSshClient(
     await CallCommand<ValueTuple<string>>(
       preconditions: () =>
       {
-        if (DangerousShellQuoteChars.IsMatch(filePath))
-          throw new DangerousOperationException("contains dangerous characters.", filePath);
+        if (PathValidation.IsInvalidatePathEntry(filePath, out var errors, doubleQuotable: true))
+          throw new DangerousOperationException("contains dangerous characters.", errors, nameof(filePath));
       },
       getCommand: () => $"cat \"{filePath}\"",
       handler: command =>
@@ -132,8 +136,8 @@ internal sealed class TrueNasSshClient(
     await CallCommand<ImmutableArray<string>>(
       preconditions: () =>
       {
-        if (DangerousShellQuoteChars.IsMatch(path))
-          throw new DangerousOperationException("contains dangerous characters.", nameof(path));
+        if (PathValidation.IsInvalidatePathEntry(path, out var errors, doubleQuotable: true))
+          throw new DangerousOperationException("contains dangerous characters.", errors, nameof(path));
       },
       getCommand: () => $"ls -1 \"{path.Replace("~", "$HOME")}\" ",
       handler: command =>
@@ -156,15 +160,14 @@ internal sealed class TrueNasSshClient(
   /// Return the results of <c>ls -al</c> on the directory <paramref name="path"/>,
   /// including <c>.</c> and <c>..</c>, with metadata about entries.
   /// </summary>
-  public async Task<SshResult<ImmutableArray<LsLine>>> LsVerboseAsync(string path, CancellationToken cancellationToken)
-  {
-    // TODO fix ~
-    path = path.Replace("~", "$HOME");
-    return await CallCommand<ImmutableArray<LsLine>>(
+  public async Task<SshResult<ImmutableArray<LsLine>>> LsVerboseAsync(string path, CancellationToken cancellationToken) =>
+    await CallCommand<ImmutableArray<LsLine>>(
       preconditions: () =>
       {
-        if (DangerousShellQuoteChars.IsMatch(path))
-          throw new DangerousOperationException("contains dangerous characters.", nameof(path));
+        PathValidation.ReplaceHomeTilde(ref path);
+
+        if (PathValidation.IsInvalidatePathEntry(path, out var errors, doubleQuotable: true))
+          throw new DangerousOperationException("contains dangerous characters.", errors, nameof(path));
       },
       getCommand: () => $"ls {LsLine.LsFlags} \"{path}\" ",
       handler: command =>
@@ -182,7 +185,6 @@ internal sealed class TrueNasSshClient(
       },
       cancellationToken: cancellationToken
     );
-  }
 
   public async Task<SshResult<LsblkDevice.LsblkResult>> LsblkAsync(CancellationToken cancellationToken)
     => await CallCommand(
@@ -210,10 +212,10 @@ internal sealed class TrueNasSshClient(
     CancellationToken cancellationToken
   )
   {
-    if (copyFrom.Contains('\''))
-      throw new DangerousOperationException("cannot contain '", nameof(copyFrom));
-    if (DangerousShellQuoteChars.IsMatch(destination))
-      throw new DangerousOperationException("contains dangerous characters.", nameof(destination));
+    if (PathValidation.IsInvalidatePathEntry(copyFrom, out var sqErrors, singleQuotable: true))
+      throw new DangerousOperationException("contains dangerous characters", sqErrors, nameof(copyFrom));
+    if (PathValidation.IsInvalidatePathEntry(destination, out var dqErrors, doubleQuotable: true))
+      throw new DangerousOperationException("contains dangerous characters", dqErrors, nameof(destination));
     if (SshClient?.IsConnected is not true)
       throw new InvalidOperationException("Connect first");
 
@@ -241,16 +243,18 @@ internal sealed class TrueNasSshClient(
 
   private string ProcessDoubleQuotePath(string path, string name)
   {
-    if (DangerousShellQuoteChars.IsMatch(path))
-      throw new DangerousOperationException("contains dangerous characters.", name);
-    // fix ~
-    return path.Replace("~", "$HOME");
+    PathValidation.ReplaceHomeTilde(ref path);
+
+    if (PathValidation.IsInvalidatePathEntry(path, out var errors, doubleQuotable: true))
+      throw new DangerousOperationException("contains dangerous characters.", errors, name);
+
+    return path;
   }
 
   private string ProcessSingleQuotePath(string path, string name)
   {
-    if (DangerousSingleQuoteChars.IsMatch(path))
-      throw new DangerousOperationException("cannot contain ' or \\ or $", name);
+    if (PathValidation.IsInvalidatePathEntry(path, out var errors, singleQuotable: true, notEmpty: true, noVariables: true))
+      throw new DangerousOperationException("contains dangerous characters.", errors, name);
     return path;
   }
 
