@@ -37,7 +37,7 @@ internal record SshResult<T>(
       { Success: true } => throw new NotSupportedException(),
       { Commentary: not null } => UiResult<R>.Err(Commentary),
       { Exception: not null } => UiResult<R>.Err(Exception.ToString()),
-      { CommandFinished: false } => throw new Exception(),
+      { CommandFinished: false } => throw new(), // SHOULD never be able to have exception and CommandFinished in this state
       _ => UiResult<R>.Err($"Uncommented command exited with {ExitStatus} and error output: {Error}"),
     };
 

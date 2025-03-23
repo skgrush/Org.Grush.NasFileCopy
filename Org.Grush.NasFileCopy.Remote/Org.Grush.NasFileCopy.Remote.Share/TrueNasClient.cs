@@ -1,8 +1,15 @@
 using System.Collections.Immutable;
+using System.Text.RegularExpressions;
 using Org.Grush.NasFileCopy.Remote.Share.Ssh;
 using Renci.SshNet;
 
 namespace Org.Grush.NasFileCopy.Remote.Share;
+
+public readonly record struct InitiateSyncResult(
+  string RunId,
+  string Mountpoint,
+  bool CreatedUserMountpoint
+);
 
 internal sealed class TrueNasClient(
   TrueNasSshClient sshClient,

@@ -112,7 +112,7 @@ internal sealed class RsyncLogReader : IAsyncDisposable
   public string GetCommandText() => $"sudo -n rsync {StdArgs} --log-file=\"{LogFilePath}\" {CopyFrom} {Destination}";
 
   public static async Task<RsyncLogReader> CreateAndStartNewAsync(
-    string password,
+    Func<Task<string?>> promptPassword,
     TrueNasSshClient client,
     string copyFrom,
     string destination,
@@ -127,7 +127,7 @@ internal sealed class RsyncLogReader : IAsyncDisposable
       cancellationToken
     );
 
-    await @this.StartNewAsync(password);
+    await @this.StartNewAsync(promptPassword);
     return @this;
   }
 
@@ -171,7 +171,7 @@ internal sealed class RsyncLogReader : IAsyncDisposable
 
   private const string IdFinderOutput = "<${?}=${!}>";
   private static readonly Regex IdFinderRe = new(@"<(?<exit>\d+)=(?<pid>\d+)>");
-  private async Task StartNewAsync(string password)
+  private async Task StartNewAsync(Func<Task<string?>> promptPassword)
   {
     if (ProcessId.HasValue)
       throw new InvalidOperationException("Re-execution");
@@ -185,17 +185,8 @@ internal sealed class RsyncLogReader : IAsyncDisposable
         throw new RsyncException($"Failed to create {RsyncLogDir}");
     }
 
-    using (var sudoCmd = _client.SshClient!.CreateCommand("sudo -S echo 'X'"))
-    {
-      await using (var sudoInput = sudoCmd.CreateInputStream())
-      {
-        await sudoInput.WriteAsync(Encoding.UTF8.GetBytes(password + '\n'), cancellationToken: token);
-      }
-
-      await sudoCmd.ExecuteAsync(cancellationToken: token);
-      if (sudoCmd.ExitStatus is not 0)
-        throw new RsyncException("Password or permission refused");
-    }
+    if (await _client.SudoElevateAsync(promptPassword, cancellationToken: token) is { Success: false } sudoResult)
+      throw sudoResult.Exception ?? new RsyncException("Password or permission refused");
 
     using var cmd = _client.SshClient!.RunCommand($"{GetCommandText()} & ; echo \"{IdFinderOutput}\"");
 

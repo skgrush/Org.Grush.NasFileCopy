@@ -1,6 +1,8 @@
 using System.Collections.Immutable;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Org.Grush.NasFileCopy.Remote.Share.Exceptions;
 using Org.Grush.NasFileCopy.Remote.Share.Ssh;
 using Org.Grush.NasFileCopy.Remote.Share.Validation;
 using Renci.SshNet;
@@ -53,10 +55,14 @@ internal sealed class TrueNasSshClient(
     await SshClient.ConnectAsync(cancellationToken);
   }
 
-  public async Task<SshResult<bool>> UnmountAsync(string devPath, CancellationToken cancellationToken) =>
+  public async Task<SshResult<bool>> UnmountAsync(bool sudo, string devPath, CancellationToken cancellationToken) =>
     await CallCommand<bool>(
       preconditions: null,
-      getCommand: () => $"sudo umount '{ProcessSingleQuotePath(devPath, nameof(devPath))}'",
+      getCommand: () =>
+      {
+        string prefix = sudo ? "sudo" : "";
+        return $"{prefix} umount '{ProcessSingleQuotePath(devPath, nameof(devPath))}'";
+      },
       handler: command =>
       {
         if (command.ExitStatus is 0)
@@ -97,7 +103,7 @@ internal sealed class TrueNasSshClient(
   public async Task<SshResult<bool>> MountDeviceAsync(string devPath, string destinationPath, CancellationToken cancellationToken) =>
     await CallCommand<bool>(
       preconditions: null,
-      getCommand: () => $"mount -rw '{ProcessSingleQuotePath(devPath, nameof(devPath))}' \"{ProcessDoubleQuotePath(destinationPath, nameof(destinationPath))}\"",
+      getCommand: () => $"sudo mount -rw '{ProcessSingleQuotePath(devPath, nameof(devPath))}' \"{ProcessDoubleQuotePath(destinationPath, nameof(destinationPath))}\"",
       handler: command =>
       {
         if (command.ExitStatus is 0)
@@ -136,10 +142,11 @@ internal sealed class TrueNasSshClient(
     await CallCommand<ImmutableArray<string>>(
       preconditions: () =>
       {
+        PathValidation.ReplaceHomeTilde(ref path);
         if (PathValidation.IsInvalidatePathEntry(path, out var errors, doubleQuotable: true))
           throw new DangerousOperationException("contains dangerous characters.", errors, nameof(path));
       },
-      getCommand: () => $"ls -1 \"{path.Replace("~", "$HOME")}\" ",
+      getCommand: () => $"ls -1 \"{path}\" ",
       handler: command =>
       {
         if (command.ExitStatus is 0)
@@ -204,15 +211,68 @@ internal sealed class TrueNasSshClient(
       cancellationToken: cancellationToken
     );
 
+  public async Task<SshResult<bool>> CheckIfSudoElevationNeededAsync(CancellationToken cancellationToken)
+  {
+    try
+    {
+      // non-interactive check credential cache
+      using var sudoCmd = SshClient!.CreateCommand("sudo -n -v");
+
+      await sudoCmd.ExecuteAsync(cancellationToken);
+
+      return SshResult<bool>.Completed(true, sudoCmd.ExitStatus is not 0, sudoCmd);
+    }
+    catch (Exception ex)
+    {
+      return SshResult<bool>.Threw(ex);
+    }
+  }
+
+  /// <summary>
+  /// If the session is not sudo-credential-cached, elevate with the given password.
+  /// </summary>
+  /// <returns>True if-and-only-if the session is now sudo-credential-cached.</returns>
+  public async Task<SshResult<bool>> SudoElevateAsync(Func<Task<string?>> promptPassword, CancellationToken cancellationToken)
+  {
+    if (await CheckIfSudoElevationNeededAsync(cancellationToken) is { Result: false } checkResult)
+    {
+      return checkResult with { Success = true, _Result = true };
+    }
+
+    try
+    {
+      // input-streamed-password credential caching
+      using var sudoCmd = SshClient!.CreateCommand("sudo -S -v");
+
+      string? password = await promptPassword();
+      if (password is null)
+        throw new PromptCancelledException();
+      password = password.Split('\n', 1)[0];
+
+      await using (var sudoInput = sudoCmd.CreateInputStream())
+      {
+        await sudoInput.WriteAsync(Encoding.UTF8.GetBytes(password + '\n'), cancellationToken: cancellationToken);
+      }
+
+      await sudoCmd.ExecuteAsync(cancellationToken: cancellationToken);
+
+      var success = sudoCmd.ExitStatus is 0;
+      return SshResult<bool>.Completed(true, success, sudoCmd);
+    }
+    catch (Exception ex)
+    {
+      return SshResult<bool>.Threw(ex);
+    }
+  }
 
   public async Task<RsyncLogReader> Rsync(
-    string password,
+    Func<Task<string?>> promptPassword,
     string copyFrom,
     string destination,
     CancellationToken cancellationToken
   )
   {
-    if (PathValidation.IsInvalidatePathEntry(copyFrom, out var sqErrors, singleQuotable: true))
+    if (PathValidation.IsInvalidatePathEntry(copyFrom, out var sqErrors, singleQuotable: true, notEmpty: true, noVariables: true))
       throw new DangerousOperationException("contains dangerous characters", sqErrors, nameof(copyFrom));
     if (PathValidation.IsInvalidatePathEntry(destination, out var dqErrors, doubleQuotable: true))
       throw new DangerousOperationException("contains dangerous characters", dqErrors, nameof(destination));
@@ -220,7 +280,7 @@ internal sealed class TrueNasSshClient(
       throw new InvalidOperationException("Connect first");
 
     return await RsyncLogReader.CreateAndStartNewAsync(
-      password: password,
+      promptPassword: promptPassword,
       client: this,
       copyFrom: $"'{copyFrom}'",
       destination: $"\"{destination}\"",
