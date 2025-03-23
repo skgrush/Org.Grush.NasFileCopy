@@ -113,11 +113,88 @@ internal sealed class TrueNasClient(
 
       return true;
     });
-  public Task<UiResult<(string runId, object?)>> InitiateSyncFromFolderToDevice(string password, string copyFrom, string destination, CancellationToken cancellationToken)
+
+  private static readonly Regex MountpointDangerChars = new("""[/\\"']|\.\.""");
+
+  public async Task<UiResult<InitiateSyncResult>> InitiateSyncFromDataSourceToDevice(
+    Func<Task<string?>> promptPassword,
+    SourceDataset srcDataset,
+    LsblkDevice destinationDevice,
+    string? destinationFolder,
+    CancellationToken cancellationToken
+  )
+  {
+    try
+    {
+      string copyFrom = srcDataset.Mountpoint;
+
+      bool createdUserMountpoint = false;
+      string destinationMountpoint;
+      if (destinationDevice.Mountpoint is null or "")
+      {
+        createdUserMountpoint = true;
+        var sudoResult = await _sshClient.SudoElevateAsync(promptPassword, cancellationToken);
+
+        if (!sudoResult.Result)
+          return sudoResult.ToUiError<InitiateSyncResult>();
+
+        string userMountBaseName =
+          destinationDevice.Label is null
+            ? destinationDevice.Partuuid ?? throw new InvalidOperationException("LsblkDevice has neither partuuid nor label")
+            : MountpointDangerChars.Replace(destinationDevice.Label, "");
+        destinationMountpoint = $"$HOME/mnt/{userMountBaseName}";
+
+        using (var mkdirCmd = _sshClient.SshClient!.CreateCommand($"mkdir -p \"{destinationMountpoint}\""))
+        {
+          await mkdirCmd.ExecuteAsync(cancellationToken);
+          if (mkdirCmd.ExitStatus is not 0)
+            return UiResult<InitiateSyncResult>.Err(mkdirCmd.Error);
+        }
+
+        var mntResult = await _sshClient.MountDeviceAsync(
+          destinationDevice.Path,
+          destinationMountpoint,
+          cancellationToken
+        );
+
+        if (!mntResult.Success)
+          return mntResult.ToUiError<InitiateSyncResult>();
+      }
+      else
+      {
+        destinationMountpoint = destinationDevice.Mountpoint;
+      }
+
+      string destination;
+      if (destinationFolder is null or "")
+        destination = destinationMountpoint;
+      else if (destinationMountpoint.EndsWith('/'))
+        destination = destinationMountpoint + destinationFolder;
+      else
+        destination = destinationMountpoint + '/' + destinationFolder;
+
+      RsyncLogReader reader = await _sshClient.Rsync(
+        promptPassword: promptPassword,
+        copyFrom: copyFrom,
+        destination: destination,
+        cancellationToken: cancellationToken
+      );
+
+      RsyncLogReaders[reader.RunId] = reader;
+
+      return new InitiateSyncResult(reader.RunId, destinationMountpoint, createdUserMountpoint);
+    }
+    catch (Exception ex)
+    {
+      return UiResult<InitiateSyncResult>.Err(ex.ToString());
+    }
+  }
+
+  private Task<UiResult<(string runId, object?)>> InitiateSyncFromFolderToDevice(Func<Task<string?>> promptPassword, string copyFrom, string destination, CancellationToken cancellationToken)
     => UiResult.ExecuteAsync(async () =>
     {
       RsyncLogReader reader = await _sshClient.Rsync(
-        password: password,
+        promptPassword: promptPassword,
         copyFrom: copyFrom,
         destination: destination,
         cancellationToken: cancellationToken

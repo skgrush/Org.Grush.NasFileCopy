@@ -30,5 +30,11 @@ public interface ITrueNasClient : IAsyncDisposable
   /// <returns>if <paramref name="overwriteAndDisposeExisting"/> is true, will return <c>false</c> if we found it locally and didn't load remotely.</returns>
   Task<UiResult<bool>> LoadLogReaderAsync(string runId, bool overwriteAndDisposeExisting, CancellationToken cancellationToken);
 
-  // Task<UiResult<(string runId, object?)>> InitiateSyncFromFolderToDevice(string password, string copyFrom, string destination, CancellationToken cancellationToken);
+  Task<UiResult<InitiateSyncResult>> InitiateSyncFromDataSourceToDevice(
+    Func<Task<string?>> promptPassword,
+    SourceDataset srcDataset,
+    LsblkDevice destinationDevice,
+    string? destinationFolder,
+    CancellationToken cancellationToken
+  );
 }
