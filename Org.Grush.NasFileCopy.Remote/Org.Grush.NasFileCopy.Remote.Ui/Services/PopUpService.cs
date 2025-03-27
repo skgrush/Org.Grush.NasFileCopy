@@ -39,7 +39,7 @@ internal class PopUpService : IPopUpService
     var page = GetLastHandler();
 
     return await page.DisplayPromptAsync(title: title, message: message, accept: accept, cancel: cancel,
-      keyboard: null // TODO: .net 9 password keyboard
+      keyboard: Keyboard.Password
     );
   }
 

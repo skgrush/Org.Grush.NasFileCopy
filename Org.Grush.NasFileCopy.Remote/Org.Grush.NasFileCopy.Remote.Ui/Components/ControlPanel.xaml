@@ -3,6 +3,7 @@
 <ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:components="clr-namespace:Org.Grush.NasFileCopy.Remote.Ui.Components"
+             xmlns:ssh="clr-namespace:Org.Grush.NasFileCopy.Remote.Share.Ssh;assembly=Org.Grush.NasFileCopy.Remote.Share"
              x:Class="Org.Grush.NasFileCopy.Remote.Ui.Components.ControlPanel"
              x:DataType="components:ControlPanel">
   <VerticalStackLayout>
@@ -11,7 +12,7 @@
       x:Name="SourceDatasetPicker"
       SelectedIndexChanged="SourceDatasetPicker_OnSelectedIndexChanged"
       ItemsSource="{ Binding SourceDatasets }"
-      ItemDisplayBinding="{ Binding Name }"
+      ItemDisplayBinding="{ Binding Name, x:DataType=ssh:SourceDataset }"
     />
 
     <BoxView HeightRequest="1" Color="White" />
@@ -21,7 +22,7 @@
       x:Name="DestinationPicker"
       SelectedIndexChanged="DestinationPicker_OnSelectedIndexChanged"
       ItemsSource="{ Binding DestinationDevices }"
-      ItemDisplayBinding="{ Binding Model }"
+      ItemDisplayBinding="{ Binding Model, x:DataType=ssh:LsblkDevice }"
     />
     <Label>Optional destination path</Label>
     <Entry

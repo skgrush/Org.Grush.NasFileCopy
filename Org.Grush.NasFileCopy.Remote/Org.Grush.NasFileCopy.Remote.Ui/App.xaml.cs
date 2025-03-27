@@ -6,6 +6,9 @@ public partial class App : Application
   {
     InitializeComponent();
 
+    // TODO
+#pragma warning disable CS0618 // Type or member is obsolete
     MainPage = new AppShell();
+#pragma warning restore CS0618 // Type or member is obsolete
   }
 }
