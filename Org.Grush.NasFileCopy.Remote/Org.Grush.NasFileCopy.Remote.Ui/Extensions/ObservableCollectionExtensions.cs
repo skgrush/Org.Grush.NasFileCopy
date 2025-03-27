@@ -17,9 +17,11 @@ public static class ObservableCollectionExtensions
     if (collection.SequenceEqual(newItems))
       return;
 
+    var oldSequence = collection.ToList();
+
     // remove items not in new set
     int idx = 0;
-    foreach (var item in collection)
+    foreach (var item in oldSequence)
     {
       if (!newItems.Contains(item))
         collection.RemoveAt(idx);
@@ -29,7 +31,7 @@ public static class ObservableCollectionExtensions
 
     foreach (var (i, newItem) in newItems.Select((item, i) => (idx: i, item)))
     {
-      if (!collection.Contains(newItem))
+      if (!oldSequence.Contains(newItem))
         collection.Insert(i, newItem);
     }
   }

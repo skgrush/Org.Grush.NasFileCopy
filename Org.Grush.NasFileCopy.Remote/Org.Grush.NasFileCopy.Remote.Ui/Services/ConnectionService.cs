@@ -49,6 +49,7 @@ internal class ConnectionService : IConnectionService
     _popUpService = popUpService;
 
     _storageService.ConfigChanged += StorageConfigChanged;
+    _storageService.ReadConfig();
   }
 
   public async Task<(bool succeeded, bool validTry)> ConnectAsync()
