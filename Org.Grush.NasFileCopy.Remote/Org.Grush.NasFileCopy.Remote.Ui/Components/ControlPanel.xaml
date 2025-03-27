@@ -11,7 +11,10 @@
       x:Name="SourceDatasetPicker"
       SelectedIndexChanged="SourceDatasetPicker_OnSelectedIndexChanged"
       ItemsSource="{ Binding SourceDatasets }"
-      ItemDisplayBinding="{ Binding Name }" />
+      ItemDisplayBinding="{ Binding Name }"
+    />
+
+    <BoxView HeightRequest="1" Color="White" />
 
     <Label>Destination devices</Label>
     <Picker
@@ -20,7 +23,15 @@
       ItemsSource="{ Binding DestinationDevices }"
       ItemDisplayBinding="{ Binding Model }"
     />
+    <Label>Optional destination path</Label>
+    <Entry
+      x:Name="DestinationPathEntry"
+    />
 
+    <Button
+      x:Name="SubmitBtn"
+      Clicked="SubmitBtn_OnClicked"
+    />
 
   </VerticalStackLayout>
 </ContentView>

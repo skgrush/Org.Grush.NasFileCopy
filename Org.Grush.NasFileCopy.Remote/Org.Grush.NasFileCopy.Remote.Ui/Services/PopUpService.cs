@@ -12,6 +12,7 @@ public interface IPopUpService
     string? placeholder = null, string initialValue = "");
 
   Task DisplayAlertAsync(string? title, string message, string? cancel = "Cancel");
+  Task<string?> DisplayPasswordPromptAsync(string title, string message, string accept, string cancel);
 }
 
 internal class PopUpService : IPopUpService
@@ -31,6 +32,15 @@ internal class PopUpService : IPopUpService
 
     return await page.DisplayPromptAsync(title: title, message: message, accept: accept, cancel: cancel,
           placeholder: placeholder, initialValue: initialValue);
+  }
+
+  public async Task<string?> DisplayPasswordPromptAsync(string title, string message, string accept, string cancel)
+  {
+    var page = GetLastHandler();
+
+    return await page.DisplayPromptAsync(title: title, message: message, accept: accept, cancel: cancel,
+      keyboard: null // TODO: .net 9 password keyboard
+    );
   }
 
   public async Task DisplayAlertAsync(string? title, string message, string? cancel = "Cancel")
