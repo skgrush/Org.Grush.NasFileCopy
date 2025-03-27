@@ -68,12 +68,22 @@ public partial class ControlPanel : ContentView
     _dataService.PickDestination(selected);
   }
 
-
-  private void SubmitBtn_OnClicked(object? sender, EventArgs e)
+  private async void SubmitBtn_OnClicked(object? sender, EventArgs e)
   {
     if (Validate() is not (SourceDataset src, LsblkDevice dest, var destPath))
       return;
 
-    _dataService.InitiateSync(src, dest, destPath);
+    SubmitBtn.IsEnabled = false;
+
+    var success = await _dataService.InitiateSync(src, dest, destPath).ConfigureAwait(ConfigureAwaitOptions.ContinueOnCapturedContext);
+
+    SubmitBtn.IsEnabled = true;
+
+    if (!success)
+      return;
+
+    SourceDatasetPicker.SelectedIndex = -1;
+    DestinationPicker.SelectedItem = -1;
+    DestinationPathEntry.Text = "";
   }
 }

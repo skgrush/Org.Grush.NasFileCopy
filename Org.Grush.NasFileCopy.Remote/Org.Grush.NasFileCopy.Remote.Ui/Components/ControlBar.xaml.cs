@@ -31,6 +31,7 @@ public partial class ControlBar : ContentView
     DisconnectBtn.IsVisible = false;
 
     _connectionService.ConnectionChanged += ConnectionChanged;
+    ConnectionChanged(this, _connectionService.Config);
   }
 
   private async void ConnectBtn_OnClicked(object? sender, EventArgs e)

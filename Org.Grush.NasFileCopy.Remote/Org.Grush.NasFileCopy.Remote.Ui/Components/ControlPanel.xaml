@@ -22,7 +22,7 @@
       x:Name="DestinationPicker"
       SelectedIndexChanged="DestinationPicker_OnSelectedIndexChanged"
       ItemsSource="{ Binding DestinationDevices }"
-      ItemDisplayBinding="{ Binding Model, x:DataType=ssh:LsblkDevice }"
+      ItemDisplayBinding="{ Binding Label, x:DataType=ssh:LsblkDevice }"
     />
     <Label>Optional destination path</Label>
     <Entry
@@ -32,6 +32,7 @@
     <Button
       x:Name="SubmitBtn"
       Clicked="SubmitBtn_OnClicked"
+      Text="Submit"
     />
 
   </VerticalStackLayout>
