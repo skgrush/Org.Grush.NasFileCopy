@@ -15,7 +15,7 @@ public interface IDataService
 
   void PickSource(SourceDataset? source);
   void PickDestination(LsblkDevice? destination);
-  Task InitiateSync(SourceDataset src, LsblkDevice dest, string? destPath);
+  Task<bool> InitiateSync(SourceDataset src, LsblkDevice dest, string? destPath);
   Task GetRunsAsync(CancellationToken cancellationToken);
 }
 
@@ -24,6 +24,7 @@ internal class DataService : IDataService
   private readonly ITrueNasClient _client;
   private readonly IConnectionService _connectionService;
   private readonly IPopUpService _popUpService;
+  private readonly ISudoPrompterFactory _sudoPrompterFactory;
 
   private readonly ObservableCollection<SourceDataset> _sourceDatasets = [];
   private readonly ObservableCollection<LsblkDevice> _destinationDevices = [];
@@ -41,12 +42,14 @@ internal class DataService : IDataService
   public DataService(
     ITrueNasClient client,
     IConnectionService connectionService,
-    IPopUpService popUpService
+    IPopUpService popUpService,
+    ISudoPrompterFactory sudoPrompterFactory
   )
   {
     _client = client;
     _connectionService = connectionService;
     _popUpService = popUpService;
+    _sudoPrompterFactory = sudoPrompterFactory;
 
 
     _connectionService.ConnectionChanged += OnConnectionChanged;
@@ -80,9 +83,11 @@ internal class DataService : IDataService
     _runs.Clear();
   }
 
-  public async Task InitiateSync(SourceDataset src, LsblkDevice dest, string? destPath)
+  public async Task<bool> InitiateSync(SourceDataset src, LsblkDevice dest, string? destPath)
   {
     var token = ConnectionChangeCanceller.Token;
+
+    await using var sudoPrompter = _sudoPrompterFactory.Create(PromptPassword);
 
     var result = await _client.InitiateSyncFromDataSourceToDevice(
       promptPassword: PromptPassword,
@@ -95,7 +100,7 @@ internal class DataService : IDataService
     if (!result.IsOk)
     {
       await _popUpService.DisplayAlertAsync("Error while initiating", result.Error, cancel: "Close");
-      return;
+      return false;
     }
 
     var initResult = result.Value;
@@ -106,7 +111,7 @@ internal class DataService : IDataService
     else
       await runTask;
 
-    return;
+    return true;
 
     Task<string?> PromptPassword() => _popUpService.DisplayPasswordPromptAsync("Enter password", "Enter password for sudo elevation", "OK", "Cancel");
   }
@@ -137,7 +142,7 @@ internal class DataService : IDataService
 
     var token = ConnectionChangeCanceller.Token;
     var datasetTask = _client.GetSourceDatasets(token).ConfigureAwait(true);
-    var destinationsTask = _client.GetDestinationDevices(true, token).ConfigureAwait(true);
+    var destinationsTask = _client.GetDestinationDevices(onlyHotpluggable: true, onlyPartitions: true, cancellationToken: token).ConfigureAwait(true);
 
     await datasetTask;
     await destinationsTask;
