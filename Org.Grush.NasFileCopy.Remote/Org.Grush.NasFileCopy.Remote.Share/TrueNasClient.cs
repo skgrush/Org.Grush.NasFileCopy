@@ -78,14 +78,19 @@ internal sealed class TrueNasClient(
       .ToImmutableArray();
   }
 
-  public async Task<UiResult<ImmutableArray<LsblkDevice>>> GetDestinationDevices(bool onlyHotpluggable, CancellationToken cancellationToken)
+  public async Task<UiResult<ImmutableArray<LsblkDevice>>> GetDestinationDevices(bool onlyHotpluggable,
+    CancellationToken cancellationToken, bool onlyPartitions)
   {
     var lsblkResult = await _sshClient.LsblkAsync(cancellationToken);
 
     if (!lsblkResult.Success)
       return lsblkResult.ToUiError<ImmutableArray<LsblkDevice>>();
 
-    var destinations = lsblkResult.Result.Blockdevices;
+    var destinations = lsblkResult.Result.Blockdevices
+      .SelectMany(d => d.DepthfirstRecurse())
+      .ToImmutableArray();
+    if (onlyPartitions)
+      destinations = [..destinations.Where(d => d.Type is "part")];
     if (onlyHotpluggable)
       destinations = [..destinations.Where(d => d.Hotplug)];
 

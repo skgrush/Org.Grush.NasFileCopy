@@ -21,7 +21,8 @@ public interface ITrueNasClient : IAsyncDisposable
   /// </summary>
   Task<UiResult<ImmutableArray<SourceDataset>>> GetSourceDatasets(CancellationToken cancellationToken);
 
-  Task<UiResult<ImmutableArray<LsblkDevice>>> GetDestinationDevices(bool onlyHotpluggable, CancellationToken cancellationToken);
+  Task<UiResult<ImmutableArray<LsblkDevice>>> GetDestinationDevices(bool onlyHotpluggable,
+    CancellationToken cancellationToken, bool onlyPartitions);
   IAsyncEnumerable<RsyncLogState>? ListenToLocallyConnectedLog(string runId, Func<string, Task> errorLogger, CancellationToken cancellationToken);
 
   /// <summary>
