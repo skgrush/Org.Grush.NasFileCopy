@@ -10,5 +10,6 @@ public static class DependencyInjectionExtensions
       .AddSingleton<TrueNasSshClient>()
       .AddSingleton<TrueNasHttpClient>()
       .AddSingleton<IAnalyticsReporter, AnalyticsReporter>()
+      .AddSingleton<ISudoPrompterFactory, SudoPrompterFactory>()
     ;
 }
