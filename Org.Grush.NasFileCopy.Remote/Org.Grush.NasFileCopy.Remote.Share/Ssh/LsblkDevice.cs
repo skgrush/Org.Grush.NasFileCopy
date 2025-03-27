@@ -56,6 +56,18 @@ public record struct LsblkDevice(
   public const string OutputColumns =
     "PATH,RO,HOTPLUG,VENDOR,MODEL,LABEL,NAME,PARTLABEL,PARTTYPE,PARTTYPENAME,PARTUUID,SIZE,MOUNTPOINT,TYPE,TRAN,FSTYPE,FSVER,MOUNTPOINTS";
 
+  public IEnumerable<LsblkDevice> DepthfirstRecurse()
+  {
+    yield return this;
+    foreach (var child in Children ?? [])
+    {
+      foreach (var outItem in child.DepthfirstRecurse())
+      {
+        yield return outItem;
+      }
+    }
+  }
+
   public record struct LsblkResult(
     ImmutableArray<LsblkDevice> Blockdevices
   );
