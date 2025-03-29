@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -56,14 +57,18 @@ internal sealed class RsyncLogReader : IAsyncDisposable
   private const string LogFmt = $"{Sep}%p{Sep}%b{Sep}%i{Sep}%f{Sep}";
   private const string StdArgs = $"--verbose --archive --no-o --no-g --times  --log-file-format=\"{LogFmt}\"  --stats -P";
 
-  /// <summary>Captures the an entire log line's datetime/pid and contents. Use the other `Re`s to match specific lines.</summary>
-  private static readonly Regex LogPrefixRe = new(@"^(?<datetime>[\d/]{10} [\d:]{8}) \[(?<boxed-pid>\d+)\] (?<contents>[^\n]*)$", RegexOptions.Multiline);
+  /// <summary>Captures an entire log line's datetime/pid and contents. Use the other `Re`s to match specific lines.</summary>
+  private static readonly Regex LogPrefixRe = new(@"^(?<datetime>[\d/]{10} [\d:]{8}) \[(?<boxedpid>\d+)\] (?<contents>[^\n]*)$", RegexOptions.Multiline);
   /// <summary>Matches the contents of a transfer log line.</summary>
   private static readonly Regex LogRe = new(@"^ /// (?<pid>\d+) /// (?<fileBytes>\d+) /// (?<itemizedChanges>\S+) /// (?<fileName>.*) /// $");
   /// <summary>Matches the contents of a final log line with sent/received/total bytes.</summary>
-  private static readonly Regex FinalLogRe = new(@"^sent\s+(?<sent>\d+)\s+bytes\s+received(?<recv>\d+)\s+bytes\s+total size\s+(?<total>\d+)$");
+  private static readonly Regex FinalLogRe2 = new(@"^(?!.*(///|rsync|:).*$)(sent |received |total size |speedup).*?  $");
+  // private static readonly Regex FinalLogRe = new(@"^sent\s+(?<sent>[\d,]+)\s+bytes\s+received(?<recv>[\d,]+)\s+bytes\s+total size\s+(?<total>\d+)$");
   /// <summary>Matches the contents of a log from rsync itself.</summary>
   private static readonly Regex MetaLogRe = new(@"^rsync[: ]+(?<meta>[^\n]+)$");
+
+  private static readonly Regex TwoOrMoreSpacesRe = new(@"  +");
+  private static readonly Regex NoColonLabelNumberRe = new(@"(?<=[a-z])\s+(?=[0-9])");
 
   private readonly TrueNasSshClient _client;
   private readonly CancellationTokenSource _cancellationTokenSource = new();
@@ -76,6 +81,7 @@ internal sealed class RsyncLogReader : IAsyncDisposable
   public string CopyFrom { get; }
   public string Destination { get; }
   public RsyncLogState? CurrentState { get; private set; }
+  public ImmutableDictionary<string, string>? FinalLogs { get; private set; }
   public bool Completed => CurrentState?.CompletedSuccessfully is not null;
 
   public TimeSpan ListenDelay { get; set; } = TimeSpan.FromSeconds(1);
@@ -109,7 +115,7 @@ internal sealed class RsyncLogReader : IAsyncDisposable
   public static string RunIdToLogFileName(string runId) => $"rsync.{runId}.log";
   public static void ValidateRunId(string runId) => _ = DateTime.ParseExact(runId, RunIdDateFormat, null);
 
-  public string GetCommandText() => $"sudo -n rsync {StdArgs} --log-file=\"{LogFilePath}\" {CopyFrom} {Destination}";
+  public string GetCommandText() => $"sudo rsync {StdArgs} --log-file=\"{LogFilePath}\" {CopyFrom} {Destination}";
 
   public static async Task<RsyncLogReader> CreateAndStartNewAsync(
     ISudoPrompter sudoPrompter,
@@ -185,10 +191,12 @@ internal sealed class RsyncLogReader : IAsyncDisposable
         throw new RsyncException($"Failed to create {RsyncLogDir}");
     }
 
-    if (await _client.SudoElevateAsync(promptPassword, cancellationToken: token) is { Success: false } sudoResult)
-      throw sudoResult.Exception ?? new RsyncException("Password or permission refused");
+    // TODO: cannot do just &; we need to disown
+    // sudo cmd &
 
-    using var cmd = _client.SshClient!.RunCommand($"{GetCommandText()} & ; echo \"{IdFinderOutput}\"");
+
+    // sudo -k && sudo --stdin --validate --prompt='TNSC_SUDO_PROMPT'
+    // sudo rsync --log-file="$HOME/Org.Grush.NasFileCopy/rsync-logs/test-rsync.log" --verbose --archive --no-o --no-g --times  --log-file-format=" /// %p /// %b /// %i /// %f /// "  --stats -P   /mnt/KenFS/CaveFS/    ~/mnt/MSSarchives/ & ; echo "<${?}=${!}>"
 
     var cmdResult = await _client.CallSudoCommand<(byte exitCode, uint pid)>(
       commands: [
@@ -213,9 +221,10 @@ internal sealed class RsyncLogReader : IAsyncDisposable
       cancellationToken: token
     );
 
-    var match = IdFinderRe.Match(cmd.Result);
-    byte exitCode = byte.Parse(match.Groups["exit"].Value);
-    uint pid = uint.Parse(match.Groups["pid"].Value);
+    if (!cmdResult.Success)
+      throw cmdResult.Exception!;
+
+    (byte exitCode, uint pid) = cmdResult.Result;
 
     if (exitCode is not 0)
       throw new RsyncCommandFailedException(exitCode, $"{nameof(StartNewAsync)} failed with output: {cmdResult.Output}|{cmdResult.Error}");
@@ -241,10 +250,10 @@ internal sealed class RsyncLogReader : IAsyncDisposable
 
     token.ThrowIfCancellationRequested();
 
-    using var tailCommand = _client.SshClient!.CreateCommand($"tail --pid {ProcessId} -f \"{LogFilePath}\"");
-    var executeTask = tailCommand.ExecuteAsync(token);
-
     const int capacity = 4 * 1024;
+
+    using var tailCommand = _client.SshClient!.CreateCommand($"tail --pid {ProcessId} -c {capacity} -f \"{LogFilePath}\"");
+    var executeTask = tailCommand.ExecuteAsync(token);
 
     string currentState = "";
     int iterationsSinceNoOutput = 0;
@@ -318,15 +327,23 @@ internal sealed class RsyncLogReader : IAsyncDisposable
             CurrentState = rsyncLogState;
             yield return rsyncLogState;
           }
-          else if (FinalLogRe.Match(lineContents) is { Success: true } finalLogMatch)
+          else if (FinalLogRe2.Match(lineContents) is { Success: true } finalLogMatch)
           {
+            FinalLogs = ReadFinalLogs(currentState);
+
+            var totalBytesTransmitted = ulong.Parse(
+              FinalLogs.GetValueOrDefault("total size", "0"),
+              NumberStyles.Float | NumberStyles.AllowThousands
+            );
+
             RsyncLogState rsyncLogState = new(
               LatestTransmittedFile: "",
-              LatestTransmittedFileBytes: ulong.Parse(finalLogMatch.Groups["total"].Value),
+              LatestTransmittedFileBytes: totalBytesTransmitted,
               TotalKnownBytesTransmitted: CurrentState?.TotalKnownBytesTransmitted ?? 0,
               CompletedSuccessfully: true
             );
             CurrentState = rsyncLogState;
+
             await DeleteLockFileAsync();
 
             yield return rsyncLogState;
@@ -351,6 +368,28 @@ internal sealed class RsyncLogReader : IAsyncDisposable
 
   private async Task<(uint processId, string copyFrom, string destination)> ReadFromLockFileAsync()
     => await ReadFromLockFileGivenAsync(RunId, _client, _cancellationTokenSource.Token);
+
+  private static ImmutableDictionary<string, string> ReadFinalLogs(string text)
+  {
+    return text
+      .Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+      // find all the final lines
+      .Select(line => FinalLogRe2.Match(line))
+      .Where(match => match.Success)
+      // further split final lines into their separate properties
+      .SelectMany(match => TwoOrMoreSpacesRe.Split(match.Value))
+      .Select<string, KeyValuePair<string, string>>((entry, idx) =>
+      {
+        if (entry.Split(" is ", 2, StringSplitOptions.TrimEntries) is [string isKey, string isValue])
+          return KeyValuePair.Create(isKey, isValue);
+        if (entry.Contains("bytes/s"))
+          return KeyValuePair.Create($"rate-{idx}", entry);
+        if (NoColonLabelNumberRe.Split(entry, 2) is [string lLabel, string lNumber])
+          return KeyValuePair.Create(lLabel, lNumber);
+        return KeyValuePair.Create($"unknown-{idx}", entry);
+      })
+      .ToImmutableDictionary();
+  }
 
   /// <summary>
   /// Read the contents of one of our lockfiles.
