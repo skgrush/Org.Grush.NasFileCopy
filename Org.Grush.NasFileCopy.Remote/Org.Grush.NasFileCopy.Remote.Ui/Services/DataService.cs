@@ -90,7 +90,7 @@ internal class DataService : IDataService
     await using var sudoPrompter = _sudoPrompterFactory.Create(PromptPassword);
 
     var result = await _client.InitiateSyncFromDataSourceToDevice(
-      promptPassword: PromptPassword,
+      sudoPrompter: sudoPrompter,
       srcDataset: src,
       destinationDevice: dest,
       destinationFolder: destPath,

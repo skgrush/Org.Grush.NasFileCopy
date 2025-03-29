@@ -122,7 +122,7 @@ internal sealed class TrueNasClient(
   private static readonly Regex MountpointDangerChars = new("""[/\\"']|\.\.""");
 
   public async Task<UiResult<InitiateSyncResult>> InitiateSyncFromDataSourceToDevice(
-    Func<Task<string?>> promptPassword,
+    ISudoPrompter sudoPrompter,
     SourceDataset srcDataset,
     LsblkDevice destinationDevice,
     string? destinationFolder,
@@ -138,10 +138,6 @@ internal sealed class TrueNasClient(
       if (destinationDevice.Mountpoint is null or "")
       {
         createdUserMountpoint = true;
-        var sudoResult = await _sshClient.SudoElevateAsync(promptPassword, cancellationToken);
-
-        if (!sudoResult.Result)
-          return sudoResult.ToUiError<InitiateSyncResult>();
 
         string userMountBaseName =
           destinationDevice.Label is null
@@ -157,6 +153,7 @@ internal sealed class TrueNasClient(
         }
 
         var mntResult = await _sshClient.MountDeviceAsync(
+          sudoPrompter: sudoPrompter,
           destinationDevice.Path,
           destinationMountpoint,
           cancellationToken
@@ -179,7 +176,7 @@ internal sealed class TrueNasClient(
         destination = destinationMountpoint + '/' + destinationFolder;
 
       RsyncLogReader reader = await _sshClient.Rsync(
-        promptPassword: promptPassword,
+        sudoPrompter: sudoPrompter,
         copyFrom: copyFrom,
         destination: destination,
         cancellationToken: cancellationToken
@@ -194,21 +191,6 @@ internal sealed class TrueNasClient(
       return UiResult<InitiateSyncResult>.Err(ex.ToString());
     }
   }
-
-  private Task<UiResult<(string runId, object?)>> InitiateSyncFromFolderToDevice(Func<Task<string?>> promptPassword, string copyFrom, string destination, CancellationToken cancellationToken)
-    => UiResult.ExecuteAsync(async () =>
-    {
-      RsyncLogReader reader = await _sshClient.Rsync(
-        promptPassword: promptPassword,
-        copyFrom: copyFrom,
-        destination: destination,
-        cancellationToken: cancellationToken
-      );
-
-      RsyncLogReaders[reader.RunId] = reader;
-
-      return (reader.RunId, (object?)null);
-    });
 
   async ValueTask IAsyncDisposable.DisposeAsync()
   {

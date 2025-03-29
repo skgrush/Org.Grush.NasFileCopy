@@ -112,7 +112,7 @@ internal sealed class RsyncLogReader : IAsyncDisposable
   public string GetCommandText() => $"sudo -n rsync {StdArgs} --log-file=\"{LogFilePath}\" {CopyFrom} {Destination}";
 
   public static async Task<RsyncLogReader> CreateAndStartNewAsync(
-    Func<Task<string?>> promptPassword,
+    ISudoPrompter sudoPrompter,
     TrueNasSshClient client,
     string copyFrom,
     string destination,
@@ -127,13 +127,13 @@ internal sealed class RsyncLogReader : IAsyncDisposable
       cancellationToken
     );
 
-    await @this.StartNewAsync(promptPassword);
+    await @this.StartNewAsync(sudoPrompter);
     return @this;
   }
 
   private static (string copyFrom, string destination, string logFile)? ParseCommandLineArgs(string[] commandArgs)
   {
-    if (commandArgs is ["sudo", "-n", "rsync", .., string logCmd, string copyFrom, string destination] && logCmd.StartsWith("--log-file="))
+    if (commandArgs is ["sudo", "rsync", .., string logCmd, string copyFrom, string destination] && logCmd.StartsWith("--log-file="))
       return (copyFrom, destination, logCmd["--log-file=".Length..]);
     return null;
   }
@@ -169,9 +169,9 @@ internal sealed class RsyncLogReader : IAsyncDisposable
     return @this;
   }
 
-  private const string IdFinderOutput = "<${?}=${!}>";
-  private static readonly Regex IdFinderRe = new(@"<(?<exit>\d+)=(?<pid>\d+)>");
-  private async Task StartNewAsync(Func<Task<string?>> promptPassword)
+  // private const string IdFinderOutput = "<${?}=${!}>";
+  // private static readonly Regex IdFinderRe = new(@"<(?<exit>\d+)=(?<pid>\d+)>");
+  private async Task StartNewAsync(ISudoPrompter sudoPrompter)
   {
     if (ProcessId.HasValue)
       throw new InvalidOperationException("Re-execution");
@@ -190,14 +190,35 @@ internal sealed class RsyncLogReader : IAsyncDisposable
 
     using var cmd = _client.SshClient!.RunCommand($"{GetCommandText()} & ; echo \"{IdFinderOutput}\"");
 
-    await cmd.ExecuteAsync(cancellationToken: token);
+    var cmdResult = await _client.CallSudoCommand<(byte exitCode, uint pid)>(
+      commands: [
+        (
+          command: $"{GetCommandText()} &",
+          act: rsyncResult => rsyncResult.exitStatus is 0
+        ),
+        (
+          command: "disown",
+          act: null
+        )
+      ],
+      handler: (shellStream, output, lastCode, noneStopped) => (
+        commentary: null,
+        succeeded: noneStopped,
+        result: (
+          exitCode: lastCode.exitStatus,
+          pid: lastCode.pid
+        )
+      ),
+      sudoPrompter: sudoPrompter,
+      cancellationToken: token
+    );
 
     var match = IdFinderRe.Match(cmd.Result);
     byte exitCode = byte.Parse(match.Groups["exit"].Value);
     uint pid = uint.Parse(match.Groups["pid"].Value);
 
     if (exitCode is not 0)
-      throw new RsyncCommandFailedException(exitCode, $"{nameof(StartNewAsync)} failed with output: {cmd.Result}|{cmd.Error}");
+      throw new RsyncCommandFailedException(exitCode, $"{nameof(StartNewAsync)} failed with output: {cmdResult.Output}|{cmdResult.Error}");
     if (pid is 0)
       throw new RsyncCommandFailedException(0, $"{nameof(StartNewAsync)} returned 0 but pid is 0.");
     ProcessId = pid;

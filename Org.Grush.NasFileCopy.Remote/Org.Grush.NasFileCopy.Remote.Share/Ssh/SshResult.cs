@@ -11,6 +11,7 @@ internal record SshResult<T>(
   [property: MemberNotNullWhen(true, "Error")]
   [property: MemberNotNullWhen(false, "Exception")]
   bool CommandFinished,
+  // ReSharper disable once InconsistentNaming
   T? _Result = null,
   byte? ExitStatus = null,
   string? Output = null,
@@ -57,6 +58,21 @@ internal record SshResult<T>(
       ExitStatus: (byte?)cmd.ExitStatus,
       Output: cmd.Result,
       Error: cmd.Error
+    );
+  }
+
+  public static SshResult<T> Completed(bool success, T? result, byte? exitStatus, string? output)
+  {
+    if (success && result is null)
+      throw new NotSupportedException($"Call to {nameof(SshResult<T>)}.{nameof(Completed)}() called with Success=false and Result=null");
+
+    return new SshResult<T>(
+      Success: success,
+      CommandFinished: true,
+      _Result: result,
+      ExitStatus: exitStatus,
+      Output: output,
+      Error: null
     );
   }
 }

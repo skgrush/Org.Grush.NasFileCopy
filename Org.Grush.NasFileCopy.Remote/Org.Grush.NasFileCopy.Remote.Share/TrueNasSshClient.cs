@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Org.Grush.NasFileCopy.Remote.Share.Exceptions;
 using Org.Grush.NasFileCopy.Remote.Share.Ssh;
@@ -16,6 +17,8 @@ public class DangerousOperationException(string message, string paramName) : Arg
   {
   }
 }
+
+public class SudoFailedException(string msg) : Exception($"Sudo failed: {msg}");
 
 internal sealed class TrueNasSshClient(
   IAnalyticsReporter analyticsReporter
@@ -55,14 +58,11 @@ internal sealed class TrueNasSshClient(
     await SshClient.ConnectAsync(cancellationToken);
   }
 
-  public async Task<SshResult<bool>> UnmountAsync(bool sudo, string devPath, CancellationToken cancellationToken) =>
-    await CallCommand<bool>(
+  public async Task<SshResult<bool>> UnmountAsync(ISudoPrompter? sudoPrompter, string devPath, CancellationToken cancellationToken) =>
+    sudoPrompter is null
+    ? await CallCommand<bool>(
       preconditions: null,
-      getCommand: () =>
-      {
-        string prefix = sudo ? "sudo" : "";
-        return $"{prefix} umount '{ProcessSingleQuotePath(devPath, nameof(devPath))}'";
-      },
+      getCommand: () => $"umount '{ProcessSingleQuotePath(devPath, nameof(devPath))}'",
       handler: command =>
       {
         if (command.ExitStatus is 0)
@@ -70,6 +70,25 @@ internal sealed class TrueNasSshClient(
 
         analyticsReporter.LogError("Unmount device exited with {status}", command.ExitStatus);
         return ($"Error: unmount device exit status {command.ExitStatus}", false, null);
+      },
+      cancellationToken: cancellationToken
+    )
+    :
+    await CallSudoCommand<bool>(
+      sudoPrompter: sudoPrompter,
+      commands: [
+        (
+          command: $"sudo umount '{ProcessSingleQuotePath(devPath, nameof(devPath))}'",
+          act: null
+        )
+      ],
+      handler: (shellStream, finalOutput, codes, noneFailed) =>
+      {
+        if (codes.exitStatus is 0)
+          return (null, true, true);
+
+        analyticsReporter.LogError("Unmount device exited with {status}", codes.exitStatus);
+        return ($"Error: unmount device exit status {codes.exitStatus}", false, null);
       },
       cancellationToken: cancellationToken
     );
@@ -100,18 +119,25 @@ internal sealed class TrueNasSshClient(
       cancellationToken: cancellationToken
     );
 
-  public async Task<SshResult<bool>> MountDeviceAsync(string devPath, string destinationPath, CancellationToken cancellationToken) =>
-    await CallCommand<bool>(
-      preconditions: null,
-      getCommand: () => $"sudo mount -rw '{ProcessSingleQuotePath(devPath, nameof(devPath))}' \"{ProcessDoubleQuotePath(destinationPath, nameof(destinationPath))}\"",
-      handler: command =>
+  public async Task<SshResult<bool>> MountDeviceAsync(ISudoPrompter sudoPrompter, string devPath, string destinationPath, CancellationToken cancellationToken) =>
+    await CallSudoCommand<bool>(
+      commands: [
+        (
+          command: $"sudo mount -o user -rw '{ProcessSingleQuotePath(devPath, nameof(devPath))}' \"{ProcessDoubleQuotePath(destinationPath, nameof(destinationPath))}\"",
+          /*expectation: new Regex(@"$ "),*/
+          act: null
+        )
+      ],
+      handler: (shellStream, totalOutput, lastCode, noneStopped) =>
       {
-        if (command.ExitStatus is 0)
+        var exitCode = lastCode.exitStatus;
+        if (exitCode is 0)
           return (null, true, true);
 
-        analyticsReporter.LogError("Mount device exited with {status}", command.ExitStatus);
-        return ($"Error: mount device exit status {command.ExitStatus}", false, null);
+        analyticsReporter.LogError("Mount device exited with {status}", exitCode);
+        return ($"Error: mount device exit status {exitCode}", false, null);
       },
+      sudoPrompter: sudoPrompter,
       cancellationToken: cancellationToken
     );
 
@@ -211,62 +237,8 @@ internal sealed class TrueNasSshClient(
       cancellationToken: cancellationToken
     );
 
-  public async Task<SshResult<bool>> CheckIfSudoElevationNeededAsync(CancellationToken cancellationToken)
-  {
-    try
-    {
-      // non-interactive check credential cache
-      using var sudoCmd = SshClient!.CreateCommand("sudo -n -v");
-
-      await sudoCmd.ExecuteAsync(cancellationToken);
-
-      return SshResult<bool>.Completed(true, sudoCmd.ExitStatus is not 0, sudoCmd);
-    }
-    catch (Exception ex)
-    {
-      return SshResult<bool>.Threw(ex);
-    }
-  }
-
-  /// <summary>
-  /// If the session is not sudo-credential-cached, elevate with the given password.
-  /// </summary>
-  /// <returns>True if-and-only-if the session is now sudo-credential-cached.</returns>
-  public async Task<SshResult<bool>> SudoElevateAsync(Func<Task<string?>> promptPassword, CancellationToken cancellationToken)
-  {
-    if (await CheckIfSudoElevationNeededAsync(cancellationToken) is { Result: false } checkResult)
-    {
-      return checkResult with { Success = true, _Result = true };
-    }
-
-    try
-    {
-      // input-streamed-password credential caching
-      using var sudoCmd = SshClient!.CreateCommand("sudo -S -v");
-
-      string? password = await promptPassword();
-      if (password is null)
-        throw new PromptCancelledException();
-      password = password.Split('\n', 1)[0];
-
-      await using (var sudoInput = sudoCmd.CreateInputStream())
-      {
-        await sudoInput.WriteAsync(Encoding.UTF8.GetBytes(password + '\n'), cancellationToken: cancellationToken);
-      }
-
-      await sudoCmd.ExecuteAsync(cancellationToken: cancellationToken);
-
-      var success = sudoCmd.ExitStatus is 0;
-      return SshResult<bool>.Completed(true, success, sudoCmd);
-    }
-    catch (Exception ex)
-    {
-      return SshResult<bool>.Threw(ex);
-    }
-  }
-
   public async Task<RsyncLogReader> Rsync(
-    Func<Task<string?>> promptPassword,
+    ISudoPrompter sudoPrompter,
     string copyFrom,
     string destination,
     CancellationToken cancellationToken
@@ -280,9 +252,9 @@ internal sealed class TrueNasSshClient(
       throw new InvalidOperationException("Connect first");
 
     return await RsyncLogReader.CreateAndStartNewAsync(
-      promptPassword: promptPassword,
+      sudoPrompter: sudoPrompter,
       client: this,
-      copyFrom: $"'{copyFrom}'",
+      copyFrom: $"'{copyFrom}/'", // add trailing slash to hopefully get only the contents; seems to work
       destination: $"\"{destination}\"",
       cancellationToken: cancellationToken
     );
@@ -339,6 +311,107 @@ internal sealed class TrueNasSshClient(
       (string? commentary, bool succeeded, T? result) = handler(command);
 
       return SshResult<T>.Completed(success: succeeded, result, command) with { Commentary = commentary };
+    }
+    catch (Exception e)
+    {
+      return SshResult<T>.Threw(e);
+    }
+  }
+
+  internal async Task<SshResult<T>> CallSudoCommand<T>(
+    ISudoPrompter sudoPrompter,
+    IEnumerable<(string command, /*Regex expectation,*/ Func<(string output, byte exitStatus, ushort pid), bool>? act)> commands,
+    Func<ShellStream, string?, (byte exitStatus, ushort pid), bool, (string? commentary, bool succeeded, T? result)> handler,
+    CancellationToken cancellationToken
+  )
+    where T : struct
+  {
+    try
+    {
+      if (SshClient is not { IsConnected: true })
+        throw new InvalidOperationException("Connect first");
+
+      await using var shellStream = SshClient.CreateShellStreamNoTerminal();
+
+      // wait for the shell prompt
+      var expectedShell = shellStream.Expect("$ ");
+      if (expectedShell is null)
+        throw new SudoFailedException("Stream closed before shell appeared");
+
+      // prompt password
+      var password = await sudoPrompter.GetPasswordAsync();
+      if (password is null or "")
+        throw new PromptCancelledException("Sudo prompt cancelled");
+
+      // clear sudo cache and read in password from prompt
+      shellStream.WriteLine("sudo -k ; sudo --stdin --validate --prompt='TNSC_SUDO_PROMPT' ");
+      var promptMatch = shellStream.Expect(new Regex("TNSC_SUDO_PROMPT|.+"));
+      if (promptMatch != "TNSC_SUDO_PROMPT")
+        throw new SudoFailedException("Timeout?");
+      shellStream.WriteLine(password);
+
+      var passwordSubmitMatch = shellStream.Expect(new Regex(@"\$|Sorry, try again"));
+      if (passwordSubmitMatch is null)
+        throw new SudoFailedException("Timeout?");
+      if (passwordSubmitMatch is "Sorry, try again")
+        throw new SudoFailedException("Password rejected");
+
+      List<(byte exitCode, ushort pid)> codes = [];
+
+      bool noneStopped = true;
+
+      foreach (var (command, /*expectation,*/ callback) in commands)
+      {
+        shellStream.Seek(0, SeekOrigin.End);
+        var startMark = Guid.NewGuid().ToString("N");
+        var endMark = Guid.NewGuid().ToString("N");
+        var outputFinder = new Regex(startMark + @"(?<output>.*)\[(?<exitCode>\d+),(?<pid>\d+)\]" + endMark, RegexOptions.Singleline);
+
+        shellStream.WriteLine($"echo {startMark}; {command} ; echo \"[${{?}},${{!}}]{endMark}\"");
+
+        var resultOutput = shellStream.Expect(outputFinder);
+        if (resultOutput is null)
+          throw new SudoFailedException("Timeout? on command");
+
+        var resultMatch = outputFinder.Match(resultOutput);
+
+        if (!resultMatch.Success)
+          throw new SudoFailedException("match but mismatch");
+
+        var output = resultMatch.Groups["output"].Value;
+        var exitCode = byte.Parse(resultMatch.Groups["exitCode"].Value);
+        var pid = byte.Parse(resultMatch.Groups["pid"].Value);
+
+        codes.Add((exitCode, pid));
+
+        if (callback is null)
+          continue;
+
+        var cbSuccess = callback((output, exitCode, pid));
+        if (!cbSuccess)
+        {
+          noneStopped = false;
+          break;
+        }
+      }
+
+      string? totalOutput = null;
+      try
+      {
+        shellStream.Seek(0, SeekOrigin.Begin);
+
+        using var shellStreamReader = new StreamReader(shellStream);
+        totalOutput = await shellStreamReader.ReadToEndAsync(cancellationToken);
+      }
+      catch (Exception e)
+      {
+        analyticsReporter.LogError(e, "Failed in re-reading output");
+      }
+
+      var lastCode = codes.Last();
+      var (commentary, success, result) = handler(shellStream, totalOutput, lastCode, noneStopped);
+
+      return SshResult<T>.Completed(success: success, result, exitStatus: lastCode.exitCode, output: totalOutput) with { Commentary = commentary };
     }
     catch (Exception e)
     {

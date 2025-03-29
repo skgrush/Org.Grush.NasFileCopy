@@ -32,7 +32,7 @@ public interface ITrueNasClient : IAsyncDisposable
   Task<UiResult<bool>> LoadLogReaderAsync(string runId, bool overwriteAndDisposeExisting, CancellationToken cancellationToken);
 
   Task<UiResult<InitiateSyncResult>> InitiateSyncFromDataSourceToDevice(
-    Func<Task<string?>> promptPassword,
+    ISudoPrompter sudoPrompter,
     SourceDataset srcDataset,
     LsblkDevice destinationDevice,
     string? destinationFolder,
